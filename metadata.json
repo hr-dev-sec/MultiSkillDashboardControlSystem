@@ -1,0 +1,6 @@
+{
+  "name": "Multi-Skill Monitoring System",
+  "description": "Multi-Skill Employee & Manager Monitoring System with competency matrix, live interactive analytics, report generation, and period duplication for Ajinomoto Mojokerto Factory.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

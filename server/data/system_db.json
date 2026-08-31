@@ -1,0 +1,79 @@
+{
+  "version": "2.3",
+  "lastUpdated": "2026-08-27T10:19:01.207Z",
+  "users": [
+    {
+      "username": "hr_admin",
+      "password": "password123",
+      "name": "Mahmud Nurdiansyah",
+      "role": "HR Development Admin",
+      "department": "Human Resources Development",
+      "email": "mahmudnurdiansyah4@gmail.com",
+      "phone": "0819-1932-7912",
+      "nik": "122108091",
+      "avatarUrl": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+      "bio": "Administrator Multi-Skill Monitoring & Pengembangan Kompetensi Karyawan PT Ajinomoto Indonesia Mojokerto Factory.",
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "updatedAt": "2026-08-27T10:19:01.207Z",
+      "lastLogin": "2026-08-27T10:12:38.360Z"
+    }
+  ],
+  "config": {
+    "smtp": {
+      "host": "mail.ajinomoto.co.id",
+      "port": 587,
+      "user": "",
+      "pass": "",
+      "fromName": "PT Ajinomoto Indonesia — Mojokerto Factory",
+      "fromEmail": "noreply@ajinomoto.co.id",
+      "secure": false,
+      "enabled": false
+    },
+    "googleSheetUrl": "https://docs.google.com/spreadsheets/d/e/2PACX-1vT1TjJ8d5X9uQ6W8P7K3e2M-Example/pubhtml",
+    "eSignApprover": {
+      "name": "Mahmud Nurdiansyah",
+      "role": "HR Development Specialist",
+      "nik": "122108091",
+      "department": "Human Resources Development",
+      "defaultNote": "Dokumen ini telah ditelaah dan disahkan secara elektronik untuk evaluasi kompetensi keahlian ganda (Multi-Skill) pabrik."
+    },
+    "jobPositionTargets": {
+      "LL_FOREMAN": 0.3,
+      "ASM_SM": 0.3,
+      "DEPT_MGR_UP": 0.3
+    },
+    "updatedAt": "2026-08-27T09:55:09.940Z"
+  },
+  "activityLogs": [
+    {
+      "id": "ACT-1787825941207-0czc7",
+      "timestamp": "2026-08-27T10:19:01.207Z",
+      "username": "hr_admin",
+      "action": "PHOTO_UPDATED",
+      "details": "Memperbarui data profil: Mahmud Nurdiansyah (HR Development Admin - Human Resources Development) beserta foto profil",
+      "ip": "127.0.0.1"
+    },
+    {
+      "id": "ACT-1787825558360-t2z5f",
+      "timestamp": "2026-08-27T10:12:38.360Z",
+      "username": "hr_admin",
+      "action": "LOGIN_SUCCESS",
+      "details": "Login berhasil ke sistem dari HR Development Admin (Human Resources Development)"
+    },
+    {
+      "id": "ACT-1787825441401-c2owo",
+      "timestamp": "2026-08-27T10:10:41.401Z",
+      "username": "hr_admin",
+      "action": "LOGIN_SUCCESS",
+      "details": "Login berhasil ke sistem dari HR Development Admin (Human Resources Development)"
+    },
+    {
+      "id": "LOG-INIT",
+      "timestamp": "2026-08-27T09:55:09.940Z",
+      "username": "system",
+      "action": "SETTINGS_SAVED",
+      "details": "Inisialisasi Database Sistem Multi-Skill Monitoring PT Ajinomoto Indonesia Mojokerto Factory."
+    }
+  ],
+  "emailLogs": []
+}
