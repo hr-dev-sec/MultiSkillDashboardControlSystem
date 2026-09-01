@@ -69,7 +69,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header
-      className="h-16 shrink-0 bg-white/95 dark:bg-[#0A192F]/95 backdrop-blur-md border-b border-slate-200/90 dark:border-white/10 flex items-center justify-between px-3 sm:px-6 gap-3 relative z-20 transition-all shadow-xs"
+      className="h-16 shrink-0 bg-white/95 dark:bg-[#0A192F]/95 backdrop-blur-md border-b border-slate-200/90 dark:border-white/10 flex items-center justify-between px-3 sm:px-6 gap-3 relative z-40 transition-all shadow-xs"
     >
       {/* Left: Sidebar Toggle & Page Title */}
       <div className="flex items-center gap-3 min-w-0">
@@ -155,37 +155,43 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
 
             {/* Quick Non-Intrusive Preview Tooltip on Hover */}
-            <div className="hidden lg:group-hover:block absolute right-0 top-full mt-2 w-64 p-3 rounded-xl bg-slate-900/95 dark:bg-[#060D17]/95 backdrop-blur-md border border-slate-700/80 text-white shadow-2xl z-50 pointer-events-none transition-all">
-              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+            <div className="hidden lg:group-hover:block absolute right-0 top-[calc(100%+8px)] w-72 p-3.5 rounded-2xl bg-slate-900/98 dark:bg-[#060D17]/98 backdrop-blur-xl border border-slate-700/90 dark:border-white/20 text-white shadow-[0_20px_50px_rgba(0,0,0,0.4)] z-[60] pointer-events-none transition-all animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800 dark:border-white/10">
                 <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
                   <i className="fa-solid fa-bolt text-xs"></i>
-                  Pintasan Cepat
+                  Pintasan Cepat Keyboard
                 </span>
-                <span className="text-[10px] text-slate-400">Klik untuk semua</span>
+                <span className="text-[10px] text-slate-400 bg-slate-800/80 dark:bg-slate-800 px-1.5 py-0.5 rounded">Klik untuk semua</span>
               </div>
-              <div className="space-y-1.5 text-[11px]">
-                <div className="flex items-center justify-between text-slate-300">
-                  <span>Toggle Sidebar</span>
-                  <kbd className="px-1.5 py-0.5 rounded bg-slate-800 font-mono text-[10px] text-amber-300 border border-slate-700">
+              <div className="space-y-2 text-[11px]">
+                <div className="flex items-center justify-between text-slate-200">
+                  <span className="font-medium">Toggle Sidebar</span>
+                  <kbd className="px-2 py-0.5 rounded bg-slate-800 dark:bg-slate-800 font-mono text-[10px] font-bold text-amber-300 border border-slate-700">
                     Ctrl + B
                   </kbd>
                 </div>
-                <div className="flex items-center justify-between text-slate-300">
-                  <span>Pindah Halaman</span>
-                  <kbd className="px-1.5 py-0.5 rounded bg-slate-800 font-mono text-[10px] text-amber-300 border border-slate-700">
+                <div className="flex items-center justify-between text-slate-200">
+                  <span className="font-medium">Pindah Halaman</span>
+                  <kbd className="px-2 py-0.5 rounded bg-slate-800 dark:bg-slate-800 font-mono text-[10px] font-bold text-amber-300 border border-slate-700">
                     Alt + 1 / 2 / 3
                   </kbd>
                 </div>
-                <div className="flex items-center justify-between text-slate-300">
-                  <span>Ganti Mode Tema</span>
-                  <kbd className="px-1.5 py-0.5 rounded bg-slate-800 font-mono text-[10px] text-amber-300 border border-slate-700">
+                <div className="flex items-center justify-between text-slate-200">
+                  <span className="font-medium">Ganti Mode Tema</span>
+                  <kbd className="px-2 py-0.5 rounded bg-slate-800 dark:bg-slate-800 font-mono text-[10px] font-bold text-amber-300 border border-slate-700">
                     Alt + T
                   </kbd>
                 </div>
-                <div className="flex items-center justify-between text-slate-300">
-                  <span>Buka Dialog PDF</span>
-                  <kbd className="px-1.5 py-0.5 rounded bg-slate-800 font-mono text-[10px] text-amber-300 border border-slate-700">
+                <div className="flex items-center justify-between text-slate-200">
+                  <span className="font-medium">Buka Dialog PDF</span>
+                  <kbd className="px-2 py-0.5 rounded bg-slate-800 dark:bg-slate-800 font-mono text-[10px] font-bold text-amber-300 border border-slate-700">
                     Alt + P
+                  </kbd>
+                </div>
+                <div className="flex items-center justify-between text-slate-200">
+                  <span className="font-medium">Ekspor Spreadsheet</span>
+                  <kbd className="px-2 py-0.5 rounded bg-slate-800 dark:bg-slate-800 font-mono text-[10px] font-bold text-amber-300 border border-slate-700">
+                    Alt + X
                   </kbd>
                 </div>
               </div>
