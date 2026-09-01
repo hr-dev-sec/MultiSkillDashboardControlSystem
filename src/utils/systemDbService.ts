@@ -3,6 +3,7 @@ import {
   getSupabaseConfig,
   fetchSupabaseUsers,
   pushUserToSupabase,
+  updateUserPasswordInSupabase,
   deleteUserFromSupabase
 } from './syncService';
 
@@ -242,15 +243,7 @@ export async function serverChangePassword(
       try {
         const sbConfig = getSupabaseConfig();
         if (sbConfig && sbConfig.url && sbConfig.anonKey) {
-          const userPayload: UserAccount = {
-            username: username.trim().toLowerCase(),
-            password: newPassword,
-            name: username,
-            role: 'User',
-            department: '',
-            updatedAt: new Date().toISOString()
-          };
-          pushUserToSupabase(sbConfig, userPayload).catch(() => {});
+          updateUserPasswordInSupabase(sbConfig, username, newPassword).catch(() => {});
         }
       } catch (sbErr) {
         console.warn('Supabase password sync note:', sbErr);
@@ -849,15 +842,7 @@ export async function adminResetUserPasswordApi(
   try {
     const sbConfig = getSupabaseConfig();
     if (sbConfig && sbConfig.url && sbConfig.anonKey) {
-      const userPayload: UserAccount = {
-        username: username.trim().toLowerCase(),
-        password: newPassword,
-        name: username,
-        role: 'User',
-        department: '',
-        updatedAt: new Date().toISOString()
-      };
-      await pushUserToSupabase(sbConfig, userPayload);
+      await updateUserPasswordInSupabase(sbConfig, username, newPassword);
     }
   } catch (sbErr) {
     console.warn('Supabase password reset sync note:', sbErr);

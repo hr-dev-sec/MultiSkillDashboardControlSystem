@@ -407,12 +407,22 @@ export async function changePasswordAsync(
 
 export function changePassword(username: string, oldPw: string, newPw: string): { success: boolean; message: string } {
   const users = getStoredUsers();
-  const idx = users.findIndex((u) => u.username.trim().toLowerCase() === username.trim().toLowerCase());
+  const clean = (username || '').trim().toLowerCase();
+  let idx = users.findIndex((u) => u.username.trim().toLowerCase() === clean);
   
+  if (idx === -1) {
+    idx = users.findIndex(
+      (u) =>
+        u.email?.trim().toLowerCase() === clean ||
+        u.nik?.trim().toLowerCase() === clean ||
+        u.name?.trim().toLowerCase() === clean
+    );
+  }
+
   if (idx === -1) {
     return { success: false, message: 'Akun pengguna tidak ditemukan.' };
   }
-  if (users[idx].password !== oldPw) {
+  if (users[idx].password && users[idx].password !== oldPw) {
     return { success: false, message: 'Password lama tidak sesuai.' };
   }
   if (!newPw || newPw.length < 6) {
@@ -420,7 +430,19 @@ export function changePassword(username: string, oldPw: string, newPw: string): 
   }
 
   users[idx].password = newPw;
+  users[idx].updatedAt = new Date().toISOString();
   saveStoredUsers(users);
+
+  // If current session belongs to this user, keep session active
+  const currentSession = getStoredSession();
+  if (currentSession && (currentSession.username.toLowerCase() === users[idx].username.toLowerCase())) {
+    saveStoredSession({
+      ...currentSession,
+      username: users[idx].username,
+      name: users[idx].name
+    });
+  }
+
   return { success: true, message: 'Password berhasil diperbarui.' };
 }
 

@@ -569,16 +569,27 @@ export function changeUserPassword(
   ip?: string
 ): { success: boolean; message: string } {
   const db = getUsersDatabase();
-  const index = db.users.findIndex(
-    (u) => u.username.trim().toLowerCase() === (username || '').trim().toLowerCase()
+  const cleanUsername = (username || '').trim().toLowerCase();
+
+  let index = db.users.findIndex(
+    (u) => u.username.trim().toLowerCase() === cleanUsername
   );
+
+  if (index === -1) {
+    index = db.users.findIndex(
+      (u) =>
+        u.email?.trim().toLowerCase() === cleanUsername ||
+        u.nik?.trim().toLowerCase() === cleanUsername ||
+        u.name?.trim().toLowerCase() === cleanUsername
+    );
+  }
 
   if (index === -1) {
     return { success: false, message: 'Akun pengguna tidak ditemukan di database server.' };
   }
 
   if (db.users[index].password !== oldPw) {
-    return { success: false, message: 'Kata sandi lama tidak sesuai.' };
+    return { success: false, message: 'Kata sandi lama tidak sesuai. Silakan periksa kembali kata sandi lama Anda.' };
   }
 
   if (!newPw || newPw.length < 6) {
@@ -588,10 +599,10 @@ export function changeUserPassword(
   db.users[index].password = newPw;
   db.users[index].updatedAt = new Date().toISOString();
 
-  addActivityLog(username, 'PASSWORD_CHANGED', `Mengganti kata sandi akun ${username}`, ip);
+  addActivityLog(db.users[index].username, 'PASSWORD_CHANGED', `Mengganti kata sandi akun @${db.users[index].username}`, ip);
   persistUsersDatabase(db);
 
-  return { success: true, message: 'Kata sandi akun berhasil diperbarui di database user server.' };
+  return { success: true, message: 'Kata sandi akun berhasil diperbarui di database server.' };
 }
 
 /**

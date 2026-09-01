@@ -1902,6 +1902,43 @@ export async function pushUserToSupabase(
 }
 
 /**
+ * Update single user password directly in Supabase table without altering other fields
+ */
+export async function updateUserPasswordInSupabase(
+  config: SupabaseConfig,
+  username: string,
+  newPassword: string
+): Promise<{ success: boolean; message: string }> {
+  if (!config.url || !config.anonKey) {
+    return { success: false, message: 'Supabase belum dikonfigurasi.' };
+  }
+
+  const client = getSupabaseClient(config);
+  if (!client) {
+    return { success: false, message: 'Klien Supabase tidak tersedia.' };
+  }
+
+  try {
+    const clean = username.trim().toLowerCase();
+    const { error } = await client
+      .from(SUPABASE_USERS_TABLE)
+      .update({
+        password: newPassword,
+        updated_at: new Date().toISOString()
+      })
+      .or(`username.ilike.${clean},email.ilike.${clean},nik.eq.${clean}`);
+
+    if (error) {
+      return { success: false, message: `Gagal memperbarui password di Supabase: ${error.message}` };
+    }
+
+    return { success: true, message: 'Password berhasil diperbarui di Supabase.' };
+  } catch (err: any) {
+    return { success: false, message: `Gagal sinkronisasi password ke Supabase: ${err?.message || 'Error jaringan'}` };
+  }
+}
+
+/**
  * Batch Push / Sync all user accounts to Supabase
  */
 export async function pushAllUsersToSupabase(
