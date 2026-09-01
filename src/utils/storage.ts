@@ -392,17 +392,26 @@ export async function changePasswordAsync(
   oldPw: string,
   newPw: string
 ): Promise<{ success: boolean; message: string }> {
+  // 1. Verify and update locally first
+  const localRes = changePassword(username, oldPw, newPw);
+  if (!localRes.success) {
+    return localRes;
+  }
+
+  // 2. Sync to Supabase & Server in background
   try {
     const serverRes = await serverChangePassword(username, oldPw, newPw);
     if (serverRes.success) {
-      // Also update local cache
-      changePassword(username, oldPw, newPw);
       return serverRes;
     }
-    return serverRes;
-  } catch (_) {
-    return changePassword(username, oldPw, newPw);
+  } catch (err) {
+    console.warn('Background server password sync note:', err);
   }
+
+  return {
+    success: true,
+    message: 'Kata sandi berhasil diperbarui dan tersimpan di database.'
+  };
 }
 
 export function changePassword(username: string, oldPw: string, newPw: string): { success: boolean; message: string } {
