@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { UserAccount, UserSession, UserScopeType } from '../types';
+import { UserAccount, UserSession, UserScopeType, Employee } from '../types';
 import ConfirmationModal, { ConfirmationVariant } from './ConfirmationModal';
 import {
   fetchAllMasterUsers,
@@ -12,7 +12,7 @@ import {
   importUsersDatabase,
   resetUsersDatabase
 } from '../utils/systemDbService';
-import { saveStoredUsers, getStoredUsers } from '../utils/storage';
+import { saveStoredUsers, getStoredUsers, getStoredEmployees } from '../utils/storage';
 import {
   getSupabaseConfig,
   saveSupabaseConfig,
@@ -78,6 +78,79 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [filterRole, setFilterRole] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
+  const [dbEmployees, setDbEmployees] = useState<Employee[]>(() => getStoredEmployees());
+
+  // Dynamic values extracted directly from the actual database (employees + user accounts)
+  const dbDivisions = useMemo(() => {
+    const set = new Set<string>();
+    dbEmployees.forEach((e) => {
+      if (e.divisi && e.divisi.trim()) set.add(e.divisi.trim());
+    });
+    users.forEach((u) => {
+      if (u.divisi && u.divisi.trim()) set.add(u.divisi.trim());
+    });
+    const list = Array.from(set).sort((a, b) => a.localeCompare(b));
+    return list.length > 0 ? list : PRESET_DIVISIONS;
+  }, [dbEmployees, users]);
+
+  const dbDepartments = useMemo(() => {
+    const set = new Set<string>();
+    dbEmployees.forEach((e) => {
+      if (e.department && e.department.trim()) set.add(e.department.trim());
+    });
+    users.forEach((u) => {
+      if (u.department && u.department.trim()) set.add(u.department.trim());
+    });
+    const list = Array.from(set).sort((a, b) => a.localeCompare(b));
+    return list.length > 0 ? list : PRESET_DEPARTMENTS;
+  }, [dbEmployees, users]);
+
+  const departmentsByDivision = useMemo(() => {
+    const map: Record<string, string[]> = {};
+    dbEmployees.forEach((e) => {
+      const div = e.divisi?.trim();
+      const dept = e.department?.trim();
+      if (div && dept) {
+        if (!map[div]) map[div] = [];
+        if (!map[div].includes(dept)) map[div].push(dept);
+      }
+    });
+    users.forEach((u) => {
+      const div = u.divisi?.trim();
+      const dept = u.department?.trim();
+      if (div && dept) {
+        if (!map[div]) map[div] = [];
+        if (!map[div].includes(dept)) map[div].push(dept);
+      }
+    });
+    Object.keys(map).forEach((div) => {
+      map[div].sort((a, b) => a.localeCompare(b));
+    });
+    return map;
+  }, [dbEmployees, users]);
+
+  const dbRoles = useMemo(() => {
+    const set = new Set<string>();
+    // Existing user roles from database
+    users.forEach((u) => {
+      if (u.role && u.role.trim()) set.add(u.role.trim());
+    });
+    // Jabatan & PIC positions from employee database
+    dbEmployees.forEach((e) => {
+      if (e.jabatan && e.jabatan.trim()) {
+        const j = e.jabatan.trim();
+        set.add(j);
+        set.add(`PIC ${j}`);
+      }
+      if (e.department && e.department.trim()) {
+        set.add(`PIC ${e.department.trim()}`);
+        set.add(`Admin Departemen ${e.department.trim()}`);
+      }
+    });
+    // Canonical standard system roles
+    PRESET_ROLES.forEach((r) => set.add(r));
+    return Array.from(set).sort((a, b) => a.localeCompare(b));
+  }, [dbEmployees, users]);
 
   // Confirmation Modal State (replaces all window.confirm / native dialogs)
   const [confirmModal, setConfirmModal] = useState<{
@@ -330,15 +403,23 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
 
   // Open Add Modal
   const handleOpenAddModal = () => {
+    const defaultRole = dbRoles[0] || PRESET_ROLES[0];
+    const defaultDiv = dbDivisions[0] || PRESET_DIVISIONS[0];
+    const deptsInDiv = departmentsByDivision[defaultDiv] || [];
+    const defaultDept = deptsInDiv[0] || dbDepartments[0] || PRESET_DEPARTMENTS[0];
+
+    // Refresh employees from database store on open
+    setDbEmployees(getStoredEmployees());
+
     setFormUsername('');
     setFormPassword(generateRandomPassword());
     setFormName('');
     setFormNik('');
-    setFormRole(PRESET_ROLES[1]);
-    setFormDivisi(PRESET_DIVISIONS[1]);
-    setFormDepartment(PRESET_DEPARTMENTS[1]);
+    setFormRole(defaultRole);
+    setFormDivisi(defaultDiv);
+    setFormDepartment(defaultDept);
     setFormScopeType('DEPARTMENT');
-    setFormScopeValue(PRESET_DEPARTMENTS[1]);
+    setFormScopeValue(defaultDept);
     setFormStatus('ACTIVE');
     setFormEmail('');
     setFormPhone('');
@@ -348,15 +429,53 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
     setShowAddModal(true);
   };
 
+  // Auto-fill account form based on real employee selected from database
+  const handleSelectEmployeeFromDb = (emp: Employee) => {
+    const cleanUsername = (emp.empName || '')
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '')
+      .slice(0, 20) || `user_${emp.empId}`;
+
+    const defaultDiv = emp.divisi || dbDivisions[0] || PRESET_DIVISIONS[0];
+    const defaultDept = emp.department || dbDepartments[0] || PRESET_DEPARTMENTS[0];
+
+    const generatedRole = emp.jabatan
+      ? (emp.jabatan.toLowerCase().includes('manager') || emp.jabatan.toLowerCase().includes('dept')
+          ? `Admin Departemen ${defaultDept}`
+          : `PIC ${defaultDept}`)
+      : `PIC ${defaultDept}`;
+
+    setFormName(emp.empName);
+    setFormNik(emp.empId);
+    setFormDivisi(defaultDiv);
+    setFormDepartment(defaultDept);
+    setFormRole(generatedRole);
+    setFormUsername(cleanUsername);
+    setFormScopeType('DEPARTMENT');
+    setFormScopeValue(defaultDept);
+    setFormEmail(`${cleanUsername.replace(/_/g, '.')}@ajinomoto.co.id`);
+    setFormBio(`PIC Pemantauan & Evaluasi Matriks Multi-Skill ${defaultDept} (${emp.jabatan || 'Staff'}).`);
+    setFormCanEditCompetency(true);
+    setFormCanManageUsers(emp.jabatan?.toLowerCase().includes('manager') || false);
+    toast(`Data karyawan "${emp.empName}" berhasil disinkronkan ke form!`, 'info');
+  };
+
   // Open Edit Modal
   const handleOpenEditModal = (user: UserAccount) => {
+    // Refresh employees from database store on open
+    setDbEmployees(getStoredEmployees());
+
     setSelectedUser(user);
     setFormUsername(user.username);
     setFormPassword(''); // blank means keep current
     setFormName(user.name);
     setFormNik(user.nik || '');
     setFormRole(user.role);
-    setFormDivisi(user.divisi || PRESET_DIVISIONS[0]);
+    setFormDivisi(user.divisi || dbDivisions[0] || PRESET_DIVISIONS[0]);
     setFormDepartment(user.department);
     setFormScopeType(user.scopeType || (user.username === 'hr_admin' ? 'ALL' : 'DEPARTMENT'));
     setFormScopeValue(user.scopeValue || user.department);
@@ -895,7 +1014,7 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
             className="h-10 px-3 rounded-xl text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-amber-500"
           >
             <option value="ALL">Semua Peran / Role</option>
-            {PRESET_ROLES.map((r) => (
+            {dbRoles.map((r) => (
               <option key={r} value={r}>{r}</option>
             ))}
           </select>
@@ -1135,6 +1254,41 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
             </div>
 
             <form onSubmit={handleSubmitAdd} className="p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {/* Quick Pick Employee from Database */}
+              <div className="p-3.5 rounded-xl bg-amber-500/10 dark:bg-amber-950/30 border border-amber-500/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                    <i className="fa-solid fa-users-viewfinder text-amber-600 dark:text-amber-400"></i>
+                    Pilih dari Master Data Karyawan (Sinkronisasi Otomatis)
+                  </label>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-200 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200">
+                    {dbEmployees.length} Karyawan di Database
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-600 dark:text-slate-400">
+                  Pilih karyawan untuk mengisi otomatis Nama, NIK, Divisi, Departemen, Peran/Jabatan, dan Email dari database.
+                </p>
+                <select
+                  onChange={(e) => {
+                    const nik = e.target.value;
+                    if (!nik) return;
+                    const emp = dbEmployees.find((emp) => emp.empId === nik);
+                    if (emp) {
+                      handleSelectEmployeeFromDb(emp);
+                    }
+                  }}
+                  defaultValue=""
+                  className="w-full px-3.5 py-2 rounded-xl text-xs bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700/60 text-slate-900 dark:text-white font-semibold focus:ring-2 focus:ring-amber-500"
+                >
+                  <option value="">-- Cari / Pilih Karyawan dari Database ({dbEmployees.length} orang) --</option>
+                  {dbEmployees.map((emp) => (
+                    <option key={emp.empId} value={emp.empId}>
+                      {emp.empName} ({emp.empId}) — {emp.department} • {emp.jabatan}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {/* Username */}
                 <div>
@@ -1213,14 +1367,14 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
                   <input
                     type="text"
                     required
-                    list="preset-roles-list"
+                    list="db-roles-add-list"
                     value={formRole}
                     onChange={(e) => setFormRole(e.target.value)}
                     placeholder="Pilih atau ketik peran"
                     className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
                   />
-                  <datalist id="preset-roles-list">
-                    {PRESET_ROLES.map((r) => (
+                  <datalist id="db-roles-add-list">
+                    {dbRoles.map((r) => (
                       <option key={r} value={r} />
                     ))}
                   </datalist>
@@ -1248,10 +1402,23 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
                   </label>
                   <select
                     value={formDivisi}
-                    onChange={(e) => setFormDivisi(e.target.value)}
+                    onChange={(e) => {
+                      const newDiv = e.target.value;
+                      setFormDivisi(newDiv);
+                      const deptsForDiv = departmentsByDivision[newDiv] || [];
+                      if (deptsForDiv.length > 0 && !deptsForDiv.includes(formDepartment)) {
+                        setFormDepartment(deptsForDiv[0]);
+                        if (formScopeType === 'DEPARTMENT') {
+                          setFormScopeValue(deptsForDiv[0]);
+                        }
+                      }
+                      if (formScopeType === 'DIVISI') {
+                        setFormScopeValue(newDiv);
+                      }
+                    }}
                     className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
                   >
-                    {PRESET_DIVISIONS.map((d) => (
+                    {dbDivisions.map((d) => (
                       <option key={d} value={d}>{d}</option>
                     ))}
                   </select>
@@ -1272,9 +1439,28 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
                     }}
                     className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
                   >
-                    {PRESET_DEPARTMENTS.map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
+                    {departmentsByDivision[formDivisi] && departmentsByDivision[formDivisi].length > 0 ? (
+                      <>
+                        <optgroup label={`Departemen dalam Divisi ${formDivisi}`}>
+                          {departmentsByDivision[formDivisi].map((d) => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </optgroup>
+                        {dbDepartments.filter((d) => !departmentsByDivision[formDivisi]?.includes(d)).length > 0 && (
+                          <optgroup label="Departemen Lainnya (Seluruh Pabrik)">
+                            {dbDepartments
+                              .filter((d) => !departmentsByDivision[formDivisi]?.includes(d))
+                              .map((d) => (
+                                <option key={d} value={d}>{d}</option>
+                              ))}
+                          </optgroup>
+                        )}
+                      </>
+                    ) : (
+                      dbDepartments.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -1305,13 +1491,34 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     Nama Target Cakupan
                   </label>
-                  <input
-                    type="text"
-                    value={formScopeValue}
-                    onChange={(e) => setFormScopeValue(e.target.value)}
-                    disabled={formScopeType === 'ALL'}
-                    className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 disabled:opacity-60"
-                  />
+                  {formScopeType === 'DEPARTMENT' ? (
+                    <select
+                      value={formScopeValue}
+                      onChange={(e) => setFormScopeValue(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                    >
+                      {dbDepartments.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  ) : formScopeType === 'DIVISI' ? (
+                    <select
+                      value={formScopeValue}
+                      onChange={(e) => setFormScopeValue(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                    >
+                      {dbDivisions.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      disabled
+                      value="Seluruh Data Pabrik (Full Factory Access)"
+                      className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-semibold cursor-not-allowed"
+                    />
+                  )}
                 </div>
 
                 {/* Email */}
@@ -1504,13 +1711,13 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
                   <input
                     type="text"
                     required
-                    list="preset-roles-edit-list"
+                    list="db-roles-edit-list"
                     value={formRole}
                     onChange={(e) => setFormRole(e.target.value)}
                     className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
                   />
-                  <datalist id="preset-roles-edit-list">
-                    {PRESET_ROLES.map((r) => (
+                  <datalist id="db-roles-edit-list">
+                    {dbRoles.map((r) => (
                       <option key={r} value={r} />
                     ))}
                   </datalist>
@@ -1539,10 +1746,23 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
                   </label>
                   <select
                     value={formDivisi}
-                    onChange={(e) => setFormDivisi(e.target.value)}
+                    onChange={(e) => {
+                      const newDiv = e.target.value;
+                      setFormDivisi(newDiv);
+                      const deptsForDiv = departmentsByDivision[newDiv] || [];
+                      if (deptsForDiv.length > 0 && !deptsForDiv.includes(formDepartment)) {
+                        setFormDepartment(deptsForDiv[0]);
+                        if (formScopeType === 'DEPARTMENT') {
+                          setFormScopeValue(deptsForDiv[0]);
+                        }
+                      }
+                      if (formScopeType === 'DIVISI') {
+                        setFormScopeValue(newDiv);
+                      }
+                    }}
                     className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
                   >
-                    {PRESET_DIVISIONS.map((d) => (
+                    {dbDivisions.map((d) => (
                       <option key={d} value={d}>{d}</option>
                     ))}
                   </select>
@@ -1563,9 +1783,28 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
                     }}
                     className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
                   >
-                    {PRESET_DEPARTMENTS.map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
+                    {departmentsByDivision[formDivisi] && departmentsByDivision[formDivisi].length > 0 ? (
+                      <>
+                        <optgroup label={`Departemen dalam Divisi ${formDivisi}`}>
+                          {departmentsByDivision[formDivisi].map((d) => (
+                            <option key={d} value={d}>{d}</option>
+                          ))}
+                        </optgroup>
+                        {dbDepartments.filter((d) => !departmentsByDivision[formDivisi]?.includes(d)).length > 0 && (
+                          <optgroup label="Departemen Lainnya (Seluruh Pabrik)">
+                            {dbDepartments
+                              .filter((d) => !departmentsByDivision[formDivisi]?.includes(d))
+                              .map((d) => (
+                                <option key={d} value={d}>{d}</option>
+                              ))}
+                          </optgroup>
+                        )}
+                      </>
+                    ) : (
+                      dbDepartments.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))
+                    )}
                   </select>
                 </div>
 
@@ -1596,13 +1835,34 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     Nama Target Cakupan
                   </label>
-                  <input
-                    type="text"
-                    value={formScopeValue}
-                    onChange={(e) => setFormScopeValue(e.target.value)}
-                    disabled={formScopeType === 'ALL'}
-                    className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500 disabled:opacity-60"
-                  />
+                  {formScopeType === 'DEPARTMENT' ? (
+                    <select
+                      value={formScopeValue}
+                      onChange={(e) => setFormScopeValue(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                    >
+                      {dbDepartments.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  ) : formScopeType === 'DIVISI' ? (
+                    <select
+                      value={formScopeValue}
+                      onChange={(e) => setFormScopeValue(e.target.value)}
+                      className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-900 dark:text-white focus:ring-2 focus:ring-amber-500"
+                    >
+                      {dbDivisions.map((d) => (
+                        <option key={d} value={d}>{d}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      disabled
+                      value="Seluruh Data Pabrik (Full Factory Access)"
+                      className="w-full px-3.5 py-2 rounded-xl text-xs sm:text-sm bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 font-semibold cursor-not-allowed"
+                    />
+                  )}
                 </div>
 
                 {/* Email */}
