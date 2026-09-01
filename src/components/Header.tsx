@@ -10,6 +10,7 @@ interface HeaderProps {
   isSidebarCollapsed: boolean;
   onToggleSidebarCollapse: () => void;
   onOpenPdfModal?: () => void;
+  onOpenShortcutsModal?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -20,7 +21,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleDarkMode,
   isSidebarCollapsed,
   onToggleSidebarCollapse,
-  onOpenPdfModal
+  onOpenPdfModal,
+  onOpenShortcutsModal
 }) => {
   const [timeStr, setTimeStr] = useState<string>('');
 
@@ -129,11 +131,66 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={onOpenPdfModal}
             className="h-9 px-3 rounded-xl flex items-center gap-2 transition-all duration-200 cursor-pointer border shadow-xs bg-red-50 hover:bg-red-100 text-red-700 dark:bg-red-950/40 dark:hover:bg-red-900/60 dark:text-red-300 border-red-200 dark:border-red-800"
-            title="Cetak & Unduh Laporan PDF Resmi Standar PT Ajinomoto Indonesia"
+            title="Cetak & Unduh Laporan PDF Resmi Standar PT Ajinomoto Indonesia (Alt+P)"
           >
             <i className="fa-solid fa-file-pdf text-red-600 dark:text-red-400 text-sm"></i>
             <span className="text-xs font-bold hidden sm:inline">Laporan PDF</span>
           </button>
+        )}
+
+        {/* Keyboard Shortcuts Trigger with Non-Intrusive Tooltip */}
+        {onOpenShortcutsModal && (
+          <div className="relative group">
+            <button
+              type="button"
+              onClick={onOpenShortcutsModal}
+              className="h-9 px-2.5 sm:px-3 rounded-xl flex items-center gap-1.5 transition-all duration-200 cursor-pointer border shadow-xs bg-slate-100 hover:bg-amber-50 dark:bg-slate-800 dark:hover:bg-slate-700/80 text-slate-700 dark:text-slate-200 border-slate-200/80 dark:border-slate-700 group-hover:border-amber-400"
+              aria-label="Pintasan Keyboard"
+            >
+              <i className="fa-solid fa-keyboard text-xs text-amber-600 dark:text-amber-400"></i>
+              <span className="text-xs font-bold hidden lg:inline">Shortcuts</span>
+              <kbd className="hidden sm:inline-block px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-600 dark:text-slate-300 shadow-2xs">
+                ?
+              </kbd>
+            </button>
+
+            {/* Quick Non-Intrusive Preview Tooltip on Hover */}
+            <div className="hidden lg:group-hover:block absolute right-0 top-full mt-2 w-64 p-3 rounded-xl bg-slate-900/95 dark:bg-[#060D17]/95 backdrop-blur-md border border-slate-700/80 text-white shadow-2xl z-50 pointer-events-none transition-all">
+              <div className="flex items-center justify-between pb-2 mb-2 border-b border-slate-800">
+                <span className="text-[11px] font-bold text-amber-400 flex items-center gap-1.5">
+                  <i className="fa-solid fa-bolt text-xs"></i>
+                  Pintasan Cepat
+                </span>
+                <span className="text-[10px] text-slate-400">Klik untuk semua</span>
+              </div>
+              <div className="space-y-1.5 text-[11px]">
+                <div className="flex items-center justify-between text-slate-300">
+                  <span>Toggle Sidebar</span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-slate-800 font-mono text-[10px] text-amber-300 border border-slate-700">
+                    Ctrl + B
+                  </kbd>
+                </div>
+                <div className="flex items-center justify-between text-slate-300">
+                  <span>Pindah Halaman</span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-slate-800 font-mono text-[10px] text-amber-300 border border-slate-700">
+                    Alt + 1 / 2 / 3
+                  </kbd>
+                </div>
+                <div className="flex items-center justify-between text-slate-300">
+                  <span>Ganti Mode Tema</span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-slate-800 font-mono text-[10px] text-amber-300 border border-slate-700">
+                    Alt + T
+                  </kbd>
+                </div>
+                <div className="flex items-center justify-between text-slate-300">
+                  <span>Buka Dialog PDF</span>
+                  <kbd className="px-1.5 py-0.5 rounded bg-slate-800 font-mono text-[10px] text-amber-300 border border-slate-700">
+                    Alt + P
+                  </kbd>
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Theme Quick Switcher Pill */}

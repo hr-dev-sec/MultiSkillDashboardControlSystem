@@ -389,7 +389,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${
                   isDarkMode ? 'bg-white/10 text-white/50' : 'bg-slate-200/70 text-slate-600'
                 }`}>
-                  Alt+S
+                  Ctrl+B
                 </span>
               </div>
             )}

@@ -32,6 +32,7 @@ import { ExportExcelConfirmModal } from './components/ExportExcelConfirmModal';
 import { ExportPdfModal } from './components/ExportPdfModal';
 import { RecipientDownloadModal } from './components/RecipientDownloadModal';
 import { ConfirmationModal, ConfirmationVariant } from './components/ConfirmationModal';
+import { KeyboardShortcutsModal } from './components/KeyboardShortcutsModal';
 
 export default function App() {
   // Navigation Screen: 'landing' | 'login' | 'app'
@@ -43,10 +44,11 @@ export default function App() {
   // Mobile sidebar state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  // Import / Sync / Export Modal states
+  // Import / Sync / Export / Shortcuts Modal states
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isGlobalExcelModalOpen, setIsGlobalExcelModalOpen] = useState(false);
   const [isGlobalPdfModalOpen, setIsGlobalPdfModalOpen] = useState(false);
+  const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
   const [toastNotification, setToastNotification] = useState<string | null>(null);
 
   // Recipient Magic Link Download Modal State
@@ -125,18 +127,6 @@ export default function App() {
     }
     link.href = 'https://upload.wikimedia.org/wikipedia/commons/0/01/Ajinomoto_Group_Global_Brand_logo.png';
   }, []);
-
-  // Keyboard shortcut Alt+S or Ctrl+B to toggle sidebar
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.altKey && (e.key === 's' || e.key === 'S')) || (e.ctrlKey && (e.key === 'b' || e.key === 'B'))) {
-        e.preventDefault();
-        handleToggleSidebarCollapse();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleToggleSidebarCollapse]);
 
   // Dark Mode
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
@@ -512,6 +502,97 @@ export default function App() {
     }, 6000);
   }, []);
 
+  // Global Keyboard Shortcuts (Ctrl+B, Alt+1/2/3, Alt+T, Alt+I, Alt+X, Alt+P, ?, Esc)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isInput =
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable);
+
+      // Handle Escape for closing shortcuts modal
+      if (e.key === 'Escape') {
+        if (isShortcutsModalOpen) {
+          e.preventDefault();
+          setIsShortcutsModalOpen(false);
+          return;
+        }
+      }
+
+      // If user is currently typing inside an input/textarea/select, do not trigger single-key or standard shortcuts
+      if (isInput) return;
+
+      // 1. Toggle Sidebar (Ctrl+B or Alt+S)
+      if ((e.altKey && (e.key === 's' || e.key === 'S')) || ((e.ctrlKey || e.metaKey) && (e.key === 'b' || e.key === 'B'))) {
+        e.preventDefault();
+        handleToggleSidebarCollapse();
+        return;
+      }
+
+      // 2. Open Keyboard Shortcuts Modal (? or Ctrl+/ or Alt+H)
+      if (e.key === '?' || ((e.ctrlKey || e.metaKey) && e.key === '/') || (e.altKey && (e.key === 'h' || e.key === 'H'))) {
+        e.preventDefault();
+        setIsShortcutsModalOpen((prev) => !prev);
+        return;
+      }
+
+      // 3. Navigate Tabs (Alt+1 = Dashboard, Alt+2 = Data Karyawan, Alt+3 = Settings)
+      if (e.altKey && e.key === '1') {
+        e.preventDefault();
+        setActiveTab('dashboard');
+        return;
+      }
+      if (e.altKey && e.key === '2') {
+        e.preventDefault();
+        setActiveTab('employee');
+        return;
+      }
+      if (e.altKey && e.key === '3') {
+        e.preventDefault();
+        setActiveTab('settings');
+        return;
+      }
+
+      // 4. Toggle Dark Mode (Alt+T)
+      if (e.altKey && (e.key === 't' || e.key === 'T')) {
+        e.preventDefault();
+        handleToggleDarkMode();
+        return;
+      }
+
+      // 5. Open Import / Sync Modal (Alt+I)
+      if (e.altKey && (e.key === 'i' || e.key === 'I')) {
+        e.preventDefault();
+        setIsImportModalOpen(true);
+        return;
+      }
+
+      // 6. Open Excel Export Modal (Alt+X)
+      if (e.altKey && (e.key === 'x' || e.key === 'X')) {
+        e.preventDefault();
+        setIsGlobalExcelModalOpen(true);
+        return;
+      }
+
+      // 7. Open PDF Export Modal (Alt+P)
+      if (e.altKey && (e.key === 'p' || e.key === 'P')) {
+        e.preventDefault();
+        setIsGlobalPdfModalOpen(true);
+        return;
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    handleToggleSidebarCollapse,
+    handleToggleDarkMode,
+    isShortcutsModalOpen
+  ]);
+
   // Screen Routing with Animated Transitions
   return (
     <AnimatePresence mode="wait">
@@ -609,6 +690,7 @@ export default function App() {
               isSidebarCollapsed={isSidebarCollapsed}
               onToggleSidebarCollapse={handleToggleSidebarCollapse}
               onOpenPdfModal={() => setIsGlobalPdfModalOpen(true)}
+              onOpenShortcutsModal={() => setIsShortcutsModalOpen(true)}
             />
 
             {/* SHARED FILTER BAR */}
@@ -727,6 +809,30 @@ export default function App() {
             onExportSuccess={(msg) => {
               setToastNotification(msg);
               setTimeout(() => setToastNotification(null), 5000);
+            }}
+          />
+
+          {/* KEYBOARD SHORTCUTS MODAL / PANDUAN PINTASAN KEYBOARD */}
+          <KeyboardShortcutsModal
+            isOpen={isShortcutsModalOpen}
+            onClose={() => setIsShortcutsModalOpen(false)}
+            onNavigateTab={(tab) => {
+              setActiveTab(tab);
+              setIsShortcutsModalOpen(false);
+            }}
+            onToggleSidebar={handleToggleSidebarCollapse}
+            onToggleDarkMode={handleToggleDarkMode}
+            onOpenImportModal={() => {
+              setIsShortcutsModalOpen(false);
+              setIsImportModalOpen(true);
+            }}
+            onOpenExcelModal={() => {
+              setIsShortcutsModalOpen(false);
+              setIsGlobalExcelModalOpen(true);
+            }}
+            onOpenPdfModal={() => {
+              setIsShortcutsModalOpen(false);
+              setIsGlobalPdfModalOpen(true);
             }}
           />
 
