@@ -1099,6 +1099,12 @@ export function duplicatePeriod(
   let nextRowIndex = employees.reduce((max, e) => Math.max(max, e.rowIndex || 0), 6) + 1;
   let nextNo = employees.reduce((max, e) => Math.max(max, e.no || 0), 0) + 1;
 
+  // Saring data lama pada periode target jika sudah ada sebelumnya agar tidak terjadi duplikasi ganda
+  const sourceEmpIds = new Set(sourceRows.map((r) => r.empId.trim().toLowerCase()));
+  const remainingEmployees = employees.filter(
+    (e) => !(Number(e.tahun) === Number(targetTahun) && Number(e.bulan) === Number(targetBulan) && sourceEmpIds.has(e.empId.trim().toLowerCase()))
+  );
+
   const duplicatedRows: Employee[] = sourceRows.map((src) => {
     return {
       ...src,
@@ -1110,7 +1116,7 @@ export function duplicatePeriod(
     };
   });
 
-  const updatedEmployees = [...employees, ...duplicatedRows];
+  const updatedEmployees = [...remainingEmployees, ...duplicatedRows];
   saveStoredEmployees(updatedEmployees, { immediateCloudSync: true });
 
   return {

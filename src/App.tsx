@@ -21,7 +21,8 @@ import {
   fetchSupabaseEmployees,
   fetchGoogleSheetData,
   getSavedGoogleSheetUrl,
-  deleteEmployeeFromSupabase
+  deleteEmployeeFromSupabase,
+  mergeEmployeesData
 } from './utils/syncService';
 import { fetchEmployeesFromServer, saveEmployeesToServer } from './utils/systemDbService';
 
@@ -167,7 +168,6 @@ export default function App() {
   // Auto-fetch data from Server DB / Supabase Cloud / Google Sheets on boot & login across all devices
   const loadDatabaseFromSource = useCallback(async () => {
     let hasLoadedFromCloud = false;
-    let serverEmpsCount = 0;
 
     // 1. First sync persistent config and profiles from Server DB
     try {
@@ -182,17 +182,19 @@ export default function App() {
       // Check if Server has persistent real employee records
       const serverEmps = await fetchEmployeesFromServer();
       if (serverEmps && Array.isArray(serverEmps) && serverEmps.length > 0) {
-        serverEmpsCount = serverEmps.length;
-        setEmployees(serverEmps);
-        saveStoredEmployees(serverEmps);
-        const defaultPeriod = getDefaultFilterPeriod(serverEmps);
+        const currentLocal = getStoredEmployees();
+        // Smart merge: gabungkan data server dengan data lokal agar periode yang diduplikasi tidak terhapus
+        const merged = mergeEmployeesData(currentLocal, serverEmps, 'merge').updatedEmployees;
+        setEmployees(merged);
+        saveStoredEmployees(merged);
+        const defaultPeriod = getDefaultFilterPeriod(merged);
         setFilters((prev) => ({
           ...prev,
           tahun: defaultPeriod.tahun,
           bulan: defaultPeriod.bulan
         }));
         hasLoadedFromCloud = true;
-        console.log(`[Server Sync] Berhasil memuat ${serverEmps.length} karyawan dari Server DB.`);
+        console.log(`[Server Sync] Berhasil memuat & menyelaraskan ${merged.length} karyawan dari Server DB.`);
       }
     } catch (e) {
       console.warn('System init backend note:', e);
@@ -204,41 +206,42 @@ export default function App() {
       try {
         const res = await fetchSupabaseEmployees(config);
         if (res.success && res.data && res.data.length > 0) {
-          // If Supabase has more complete/recent data, or server hasn't loaded real data
-          if (!hasLoadedFromCloud || res.data.length >= serverEmpsCount) {
-            setEmployees(res.data);
-            saveStoredEmployees(res.data);
-            saveEmployeesToServer(res.data).catch(() => {});
-            
-            // Otomatis sesuaikan filter periode aktif dengan data terbaru yang ditarik dari Cloud
-            const defaultPeriod = getDefaultFilterPeriod(res.data);
-            setFilters((prev) => ({
-              ...prev,
-              tahun: defaultPeriod.tahun,
-              bulan: defaultPeriod.bulan
-            }));
-            
-            hasLoadedFromCloud = true;
-            console.log(`[Cloud Sync] Otomatis memuat ${res.data.length} karyawan dari Supabase Cloud (Semua Halaman).`);
-          }
+          const currentLocal = getStoredEmployees();
+          const merged = mergeEmployeesData(currentLocal, res.data, 'merge').updatedEmployees;
+          setEmployees(merged);
+          saveStoredEmployees(merged);
+          saveEmployeesToServer(merged).catch(() => {});
+          
+          // Otomatis sesuaikan filter periode aktif dengan data terbaru yang ditarik dari Cloud
+          const defaultPeriod = getDefaultFilterPeriod(merged);
+          setFilters((prev) => ({
+            ...prev,
+            tahun: defaultPeriod.tahun,
+            bulan: defaultPeriod.bulan
+          }));
+          
+          hasLoadedFromCloud = true;
+          console.log(`[Cloud Sync] Otomatis memuat & menyelaraskan ${merged.length} karyawan dari Supabase Cloud.`);
         }
       } catch (err) {
         console.warn('[Cloud Sync] Gagal sinkronisasi Supabase:', err);
       }
     }
 
-    // 3. Fallback: Jika belum termuat, tarik otomatis dari Google Sheet Master
+    // 3. Fallback: Jika belum termuat dari Server/Cloud, tarik otomatis dari Google Sheet Master
     if (!hasLoadedFromCloud) {
       const defaultSheet = getSavedGoogleSheetUrl();
       if (defaultSheet) {
         try {
           const sheetRes = await fetchGoogleSheetData(defaultSheet);
           if (sheetRes.success && sheetRes.data && sheetRes.data.length > 0) {
-            setEmployees(sheetRes.data);
-            saveStoredEmployees(sheetRes.data);
-            saveEmployeesToServer(sheetRes.data).catch(() => {});
+            const currentLocal = getStoredEmployees();
+            const merged = mergeEmployeesData(currentLocal, sheetRes.data, 'merge').updatedEmployees;
+            setEmployees(merged);
+            saveStoredEmployees(merged);
+            saveEmployeesToServer(merged).catch(() => {});
             
-            const defaultPeriod = getDefaultFilterPeriod(sheetRes.data);
+            const defaultPeriod = getDefaultFilterPeriod(merged);
             setFilters((prev) => ({
               ...prev,
               tahun: defaultPeriod.tahun,
@@ -810,6 +813,13 @@ export default function App() {
                         onRefreshData={(newEmployees) => {
                           setEmployees(newEmployees);
                           saveStoredEmployees(newEmployees, { immediateCloudSync: true });
+                        }}
+                        onUpdatePeriodFilter={(targetTahun, targetBulan) => {
+                          setFilters((prev) => ({
+                            ...prev,
+                            tahun: Number(targetTahun),
+                            bulan: Number(targetBulan)
+                          }));
                         }}
                         onOpenImportModal={() => setIsImportModalOpen(true)}
                         onUpdateCurrentUser={(updatedUser) => {

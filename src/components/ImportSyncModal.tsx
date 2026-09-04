@@ -164,14 +164,29 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
     const res = await fetchSupabaseEmployees(supabaseConfig, currentEmployees);
     setIsFetchingSupabase(false);
 
-    if (res.success && res.preview) {
+    if (res.success && res.data && res.data.length > 0) {
+      setPreviewData(res.preview || null);
+      // Langsung sinkronkan dan terapkan ke sistem secara otomatis
+      const mergeResult = mergeEmployeesData(currentEmployees, res.data, mergeMode);
+      onApplySync(
+        mergeResult.updatedEmployees,
+        `Berhasil menarik ${res.data.length} data karyawan dari Supabase dan langsung dimuat ke database sistem!`
+      );
+      setStatusAlert({
+        type: 'success',
+        message: `Berhasil menarik ${res.data.length} data karyawan dari Supabase dan LANGSUNG DIMUAT ke database sistem! (${mergeResult.addedCount} data baru, ${mergeResult.updatedCount} diperbarui)`
+      });
+      try {
+        confetti({ particleCount: 60, spread: 70, origin: { y: 0.5 } });
+      } catch (_) {}
+    } else if (res.success && res.preview) {
       setPreviewData(res.preview);
       setStatusAlert({
         type: 'success',
         message: `${res.message} Tinjau preview di bawah sebelum menerapkan perubahan.`
       });
     } else {
-      setStatusAlert({ type: 'error', message: res.message });
+      setStatusAlert({ type: 'error', message: res.message || 'Gagal memuat data dari Supabase.' });
     }
   };
 

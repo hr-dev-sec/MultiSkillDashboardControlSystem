@@ -63,6 +63,7 @@ interface SettingsViewProps {
   isDarkMode: boolean;
   onToggleDarkMode: () => void;
   onRefreshData: (newEmployees: Employee[]) => void;
+  onUpdatePeriodFilter?: (tahun: string, bulan: string) => void;
   onOpenImportModal?: () => void;
   onUpdateCurrentUser?: (user: UserSession) => void;
 }
@@ -76,6 +77,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   isDarkMode,
   onToggleDarkMode,
   onRefreshData,
+  onUpdatePeriodFilter,
   onOpenImportModal,
   onUpdateCurrentUser
 }) => {
@@ -458,6 +460,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       if (res.success) {
         setDupAlert({ type: 'success', message: res.message });
         onRefreshData(res.employees);
+        onUpdatePeriodFilter?.(String(dupTargetTahun), String(dupTargetBulan));
         try {
           confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
         } catch (_) {}
