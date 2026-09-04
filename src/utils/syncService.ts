@@ -1702,21 +1702,6 @@ CREATE POLICY "Allow public all access on users_accounts" ON public.users_accoun
 CREATE POLICY "Allow public all access on system_config" ON public.system_config FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public all access on activity_logs" ON public.activity_logs FOR ALL USING (true) WITH CHECK (true);
 CREATE POLICY "Allow public all access on email_logs" ON public.email_logs FOR ALL USING (true) WITH CHECK (true);
-
--- 6. VIEW DASHBOARD SUMMARY
-CREATE OR REPLACE VIEW public.v_${tableName}_summary AS
-SELECT 
-    tahun,
-    bulan,
-    divisi,
-    department,
-    COUNT(*) AS total_karyawan,
-    COUNT(CASE WHEN result = 'MS' THEN 1 END) AS total_ms,
-    COUNT(CASE WHEN result = 'US' THEN 1 END) AS total_us,
-    ROUND((COUNT(CASE WHEN result = 'MS' THEN 1 END)::NUMERIC / NULLIF(COUNT(*), 0) * 100), 1) AS ms_rate_percent,
-    ROUND(AVG(total_score), 2) AS rata_rata_score
-FROM public.${tableName}
-GROUP BY tahun, bulan, divisi, department;
 `;
 }
 
