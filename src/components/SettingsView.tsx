@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Employee, PeriodsData, UserSession, AppFiltersState, UserAccount, ActivityLog } from '../types';
-import { BULAN_LABELS } from '../data/initialData';
+import { BULAN_LABELS, getStandardForJabatan } from '../data/initialData';
 import {
   changePasswordAsync,
   updateUserProfileAsync,
@@ -86,7 +86,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [adminUsername, setAdminUsername] = useState(currentUser.username || 'hr_admin');
   const [adminNik, setAdminNik] = useState(currentUser.nik || '122108091');
   const [adminRole, setAdminRole] = useState(currentUser.role || 'HR Development Admin');
+  const [adminDivisi, setAdminDivisi] = useState(currentUser.divisi || 'Human Resources & Corporate Service');
   const [adminDepartment, setAdminDepartment] = useState(currentUser.department || 'Human Resources Development');
+  const [adminSection, setAdminSection] = useState(currentUser.section || 'Competency Development Section');
   const [adminEmail, setAdminEmail] = useState(currentUser.email || 'mahmudnurdiansyah4@gmail.com');
   const [adminPhone, setAdminPhone] = useState(currentUser.phone || '0819-1932-7912');
   const [adminBio, setAdminBio] = useState(currentUser.bio || 'Administrator Multi-Skill Monitoring & Pengembangan Kompetensi Karyawan PT Ajinomoto Indonesia Mojokerto Factory.');
@@ -100,7 +102,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     setAdminUsername(currentUser.username || 'hr_admin');
     setAdminNik(currentUser.nik || '122108091');
     setAdminRole(currentUser.role || 'HR Development Admin');
+    setAdminDivisi(currentUser.divisi || 'Human Resources & Corporate Service');
     setAdminDepartment(currentUser.department || 'Human Resources Development');
+    setAdminSection(currentUser.section || 'Competency Development Section');
     setAdminEmail(currentUser.email || 'mahmudnurdiansyah4@gmail.com');
     setAdminPhone(currentUser.phone || '0819-1932-7912');
     setAdminBio(currentUser.bio || 'Administrator Multi-Skill Monitoring & Pengembangan Kompetensi Karyawan PT Ajinomoto Indonesia Mojokerto Factory.');
@@ -593,7 +597,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         username: adminUsername.trim(),
         nik: adminNik.trim(),
         role: adminRole.trim(),
+        divisi: adminDivisi.trim(),
         department: adminDepartment.trim(),
+        section: adminSection.trim(),
         email: adminEmail.trim(),
         phone: adminPhone.trim(),
         bio: adminBio.trim(),
@@ -607,7 +613,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         name: adminName.trim(),
         nik: adminNik.trim(),
         role: adminRole.trim(),
+        divisi: adminDivisi.trim(),
         department: adminDepartment.trim(),
+        section: adminSection.trim(),
         email: adminEmail.trim(),
         phone: adminPhone.trim(),
         bio: adminBio.trim(),
@@ -638,7 +646,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         username: adminUsername.trim(),
         nik: adminNik.trim(),
         role: adminRole.trim(),
+        divisi: adminDivisi.trim(),
         department: adminDepartment.trim(),
+        section: adminSection.trim(),
         email: adminEmail.trim(),
         phone: adminPhone.trim(),
         bio: adminBio.trim(),
@@ -998,6 +1008,25 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 placeholder="Contoh: HR Development Admin"
                 className="input-elegant w-full px-3 py-2 outline-none text-sm"
               />
+              {adminRole && (
+                <div className="mt-1 flex items-center gap-1.5 text-[10.5px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 px-2 py-0.5 rounded-md">
+                  <i className="fa-solid fa-wand-magic-sparkles text-[9px]"></i>
+                  <span>Standar Otomatis: <strong>&ge; {getStandardForJabatan(adminRole).standard}</strong> ({getStandardForJabatan(adminRole).label})</span>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                Divisi
+              </label>
+              <input
+                type="text"
+                value={adminDivisi}
+                onChange={(e) => setAdminDivisi(e.target.value)}
+                placeholder="Contoh: Human Resources & Corporate Service"
+                className="input-elegant w-full px-3 py-2 outline-none text-sm"
+              />
             </div>
 
             <div>
@@ -1009,6 +1038,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 value={adminDepartment}
                 onChange={(e) => setAdminDepartment(e.target.value)}
                 placeholder="Contoh: Human Resources Development"
+                className="input-elegant w-full px-3 py-2 outline-none text-sm"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                Seksi / Section
+              </label>
+              <input
+                type="text"
+                value={adminSection}
+                onChange={(e) => setAdminSection(e.target.value)}
+                placeholder="Contoh: Competency Development Section"
                 className="input-elegant w-full px-3 py-2 outline-none text-sm"
               />
             </div>

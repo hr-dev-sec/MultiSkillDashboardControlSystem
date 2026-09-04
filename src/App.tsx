@@ -11,7 +11,8 @@ import {
   filterEmployees,
   calculateEmployeeScore,
   getDefaultFilterPeriod,
-  syncSystemFromBackend
+  syncSystemFromBackend,
+  updateEmployeeProfile
 } from './utils/storage';
 import { INITIAL_SKILL_META } from './data/initialData';
 import { Employee, UserSession, AppFiltersState } from './types';
@@ -416,6 +417,25 @@ export default function App() {
     }
   }, []);
 
+  // Update employee profile with automatic standard recalculation
+  const handleUpdateEmployeeProfile = useCallback((rowIndex: number, payload: any) => {
+    let outcome: { success: boolean; message: string } = { success: false, message: 'Gagal memperbarui profil karyawan.' };
+    try {
+      setEmployees((prev) => {
+        const res = updateEmployeeProfile(prev, rowIndex, payload);
+        outcome = { success: res.success, message: res.message };
+        if (res.success) {
+          setToastNotification(res.message);
+          return res.employees;
+        }
+        return prev;
+      });
+      return outcome;
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Gagal memperbarui profil karyawan.' };
+    }
+  }, []);
+
   // Delete employee with Rich Confirmation Modal
   const handleDeleteEmployee = useCallback((rowIndex: number, empName: string) => {
     setEmployees((currentEmps) => {
@@ -738,6 +758,7 @@ export default function App() {
                         periods={periods}
                         onUpdateSkill={handleUpdateSkill}
                         onAddEmployee={handleAddEmployee}
+                        onUpdateEmployeeProfile={handleUpdateEmployeeProfile}
                         onDeleteEmployee={handleDeleteEmployee}
                         onOpenImportModal={() => setIsImportModalOpen(true)}
                         onOpenExcelModal={() => setIsGlobalExcelModalOpen(true)}

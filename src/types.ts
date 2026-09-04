@@ -43,6 +43,7 @@ export interface UserSession {
   role: string;
   department: string;
   divisi?: string;
+  section?: string;
   scopeType?: UserScopeType;
   scopeValue?: string;
   status?: 'ACTIVE' | 'INACTIVE';
@@ -64,6 +65,7 @@ export interface UserAccount {
   role: string;
   department: string;
   divisi?: string;
+  section?: string;
   scopeType?: UserScopeType;
   scopeValue?: string;
   status?: 'ACTIVE' | 'INACTIVE';

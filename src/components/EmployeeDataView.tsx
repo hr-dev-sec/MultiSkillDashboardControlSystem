@@ -1,8 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Employee, SkillMeta, PeriodsData } from '../types';
-import { BULAN_LABELS, INITIAL_SKILL_META } from '../data/initialData';
+import { BULAN_LABELS, INITIAL_SKILL_META, getStandardForJabatan } from '../data/initialData';
 import confetti from 'canvas-confetti';
+import { EditEmployeeProfileModal } from './EditEmployeeProfileModal';
 
 interface EmployeeDataViewProps {
   employees: Employee[];
@@ -11,6 +12,7 @@ interface EmployeeDataViewProps {
   periods: PeriodsData;
   onUpdateSkill: (rowIndex: number, skillCode: string, checked: boolean) => void;
   onAddEmployee: (payload: any) => { success: boolean; message: string };
+  onUpdateEmployeeProfile?: (rowIndex: number, payload: any) => { success: boolean; message: string };
   onDeleteEmployee: (rowIndex: number, empName: string) => void;
   onOpenImportModal?: () => void;
   onOpenExcelModal?: () => void;
@@ -24,6 +26,7 @@ export const EmployeeDataView: React.FC<EmployeeDataViewProps> = ({
   periods,
   onUpdateSkill,
   onAddEmployee,
+  onUpdateEmployeeProfile,
   onDeleteEmployee,
   onOpenImportModal,
   onOpenExcelModal,
@@ -36,8 +39,14 @@ export const EmployeeDataView: React.FC<EmployeeDataViewProps> = ({
 
   // Modals state
   const [editingRowIndex, setEditingRowIndex] = useState<number | null>(null);
+  const [editingProfileRowIndex, setEditingProfileRowIndex] = useState<number | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [skillModalSearch, setSkillModalSearch] = useState('');
+
+  const activeProfileEmployee = useMemo(() => {
+    if (editingProfileRowIndex === null) return null;
+    return employees.find((e) => e.rowIndex === editingProfileRowIndex) || null;
+  }, [employees, editingProfileRowIndex]);
 
   // Add Employee Form State
   const [addForm, setAddForm] = useState({
@@ -352,8 +361,18 @@ export const EmployeeDataView: React.FC<EmployeeDataViewProps> = ({
                             type="button"
                             whileHover={{ scale: 1.12 }}
                             whileTap={{ scale: 0.92 }}
+                            onClick={() => setEditingProfileRowIndex(e.rowIndex)}
+                            title="Edit Profil Karyawan (Jabatan, Divisi, Dept, Seksi & Standar Otomatis)"
+                            className="w-8 h-8 rounded-xl flex items-center justify-center text-xs transition-colors cursor-pointer bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-500 hover:text-slate-950 dark:bg-amber-500/20 dark:text-amber-300 dark:border-amber-400/40 dark:hover:bg-amber-500 dark:hover:text-slate-950 shadow-xs"
+                          >
+                            <i className="fa-solid fa-user-pen"></i>
+                          </motion.button>
+                          <motion.button
+                            type="button"
+                            whileHover={{ scale: 1.12 }}
+                            whileTap={{ scale: 0.92 }}
                             onClick={() => setEditingRowIndex(e.rowIndex)}
-                            title="Edit Skill Matrix"
+                            title="Edit Matriks Skill"
                             className="w-8 h-8 rounded-xl flex items-center justify-center text-xs transition-colors cursor-pointer bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-600 hover:text-white dark:bg-blue-500/25 dark:text-blue-300 dark:border-blue-400/40 dark:hover:bg-blue-600 dark:hover:text-white shadow-xs"
                           >
                             <i className="fa-solid fa-pen-to-square"></i>
@@ -462,6 +481,19 @@ export const EmployeeDataView: React.FC<EmployeeDataViewProps> = ({
                     <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/15 text-white text-[11px] font-semibold">
                       <i className="fa-solid fa-calendar-days text-[10px]"></i> {getPeriodeText(activeEmployee)}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetRow = activeEmployee.rowIndex;
+                        setEditingRowIndex(null);
+                        setEditingProfileRowIndex(targetRow);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/25 hover:bg-amber-400/40 text-amber-200 hover:text-amber-100 border border-amber-400/40 text-[11px] font-bold transition-all cursor-pointer shadow-xs"
+                      title="Edit Profil, Jabatan & Sesuaikan Standar Otomatis"
+                    >
+                      <i className="fa-solid fa-user-pen text-[10px]"></i>
+                      <span>Edit Profil</span>
+                    </button>
                   </div>
                 </div>
 
@@ -787,9 +819,16 @@ export const EmployeeDataView: React.FC<EmployeeDataViewProps> = ({
                           <option key={v} value={v} />
                         ))}
                       </datalist>
-                      <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                        Menentukan threshold standard (LL/Foreman &ge;2, ASM-SM &ge;3, Dept. Manager up &ge;4).
-                      </p>
+                      {addForm.jabatan ? (
+                        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] font-bold text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/50 border border-amber-200 dark:border-amber-800 px-2 py-1 rounded-lg">
+                          <i className="fa-solid fa-wand-magic-sparkles text-[10px]"></i>
+                          <span>Standar Otomatis: <strong>&ge; {getStandardForJabatan(addForm.jabatan).standard}</strong> ({getStandardForJabatan(addForm.jabatan).label})</span>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                          Menentukan threshold standard (LL/Foreman &ge;2, ASM-SM &ge;3, Dept. Manager up &ge;4).
+                        </p>
+                      )}
                     </div>
                     <div>
                       <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1">Job Grade</label>
@@ -868,6 +907,25 @@ export const EmployeeDataView: React.FC<EmployeeDataViewProps> = ({
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Edit Employee Profile Modal */}
+      <AnimatePresence>
+        {editingProfileRowIndex !== null && activeProfileEmployee && (
+          <EditEmployeeProfileModal
+            isOpen={editingProfileRowIndex !== null}
+            employee={activeProfileEmployee}
+            periods={periods}
+            onClose={() => setEditingProfileRowIndex(null)}
+            onSave={(rowIndex, updatedProfile) => {
+              if (onUpdateEmployeeProfile) {
+                return onUpdateEmployeeProfile(rowIndex, updatedProfile);
+              }
+              return { success: false, message: 'Fungsi update profile belum terhubung.' };
+            }}
+            uniqueValues={getUniqueValues}
+          />
         )}
       </AnimatePresence>
     </div>

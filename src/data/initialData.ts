@@ -281,6 +281,26 @@ export function resolveStandard(sheetStandardValue: any, jabatan: string): numbe
   return category ? CONFIG_META.jobPositionMeta[category].threshold : 2;
 }
 
+export function getStandardForJabatan(jabatan: string): {
+  standard: number;
+  category: 'DEPT_MGR_UP' | 'ASM_SM' | 'LL_FOREMAN' | null;
+  label: string;
+} {
+  const category = getJabatanCategory(jabatan);
+  if (category) {
+    return {
+      standard: CONFIG_META.jobPositionMeta[category].threshold,
+      category,
+      label: CONFIG_META.jobPositionMeta[category].label
+    };
+  }
+  return {
+    standard: 2,
+    category: null,
+    label: 'Staff / Operator (Standard Dasar)'
+  };
+}
+
 export function calculateEmployeeScore(skills: Record<string, boolean>, jabatan: string, customStandard?: number | null): {
   totalScore: number;
   standard: number | null;

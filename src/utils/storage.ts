@@ -565,6 +565,8 @@ export function updateUserProfile(
     name: updatedData.name?.trim() || currentUserData.name,
     role: updatedData.role?.trim() || currentUserData.role,
     department: updatedData.department?.trim() || currentUserData.department,
+    divisi: updatedData.divisi !== undefined ? updatedData.divisi.trim() : currentUserData.divisi,
+    section: updatedData.section !== undefined ? updatedData.section.trim() : currentUserData.section,
     email: updatedData.email?.trim() || currentUserData.email,
     phone: updatedData.phone?.trim() || currentUserData.phone,
     nik: updatedData.nik?.trim() || currentUserData.nik,
@@ -586,6 +588,8 @@ export function updateUserProfile(
     name: mergedUser.name,
     role: mergedUser.role,
     department: mergedUser.department,
+    divisi: mergedUser.divisi,
+    section: mergedUser.section,
     email: mergedUser.email,
     phone: mergedUser.phone,
     nik: mergedUser.nik,
@@ -919,6 +923,122 @@ export function addNewEmployee(
   const updatedEmployees = [...employees, newEmployee];
   saveStoredEmployees(updatedEmployees);
   return { success: true, message: 'Karyawan baru berhasil ditambahkan.', employees: updatedEmployees };
+}
+
+/**
+ * Update employee profile data (jabatan, divisi, department, seksi, nama, grade, etc.)
+ * Automatically adjusts the threshold standard if jabatan is updated (or if custom standard is supplied).
+ */
+export function updateEmployeeProfile(
+  employees: Employee[],
+  rowIndex: number,
+  payload: {
+    empId?: string;
+    empName?: string;
+    divisi?: string;
+    department?: string;
+    section?: string;
+    grade?: string;
+    jobGrade?: string;
+    jabatan?: string;
+    gender?: string;
+    pic?: string;
+    tahun?: number;
+    bulan?: number;
+    tanggalPensiun?: string;
+    customStandard?: number | null;
+    autoAdjustStandard?: boolean;
+  }
+): { success: boolean; message: string; employees: Employee[]; updatedEmployee?: Employee } {
+  const index = employees.findIndex((e) => e.rowIndex === rowIndex);
+  if (index === -1) {
+    return { success: false, message: 'Baris data karyawan tidak ditemukan.', employees };
+  }
+
+  const currentEmp = employees[index];
+
+  // Resolve new values
+  const newEmpId = payload.empId !== undefined ? payload.empId.trim() : currentEmp.empId;
+  const newEmpName = payload.empName !== undefined ? payload.empName.trim() : currentEmp.empName;
+  const newDivisi = payload.divisi !== undefined ? payload.divisi.trim() : currentEmp.divisi;
+  const newDepartment = payload.department !== undefined ? payload.department.trim() : currentEmp.department;
+  const newSection = payload.section !== undefined ? payload.section.trim() : currentEmp.section;
+  const newGrade = payload.grade !== undefined ? payload.grade.trim() : currentEmp.grade;
+  const newJobGrade = payload.jobGrade !== undefined ? payload.jobGrade.trim() : currentEmp.jobGrade;
+  const newJabatan = payload.jabatan !== undefined ? payload.jabatan.trim() : currentEmp.jabatan;
+  const newGender = payload.gender !== undefined ? payload.gender : currentEmp.gender;
+  const newPic = payload.pic !== undefined ? payload.pic.trim() : currentEmp.pic;
+  const newTahun = payload.tahun !== undefined ? Number(payload.tahun) : currentEmp.tahun;
+  const newBulan = payload.bulan !== undefined ? Number(payload.bulan) : currentEmp.bulan;
+  const newTanggalPensiun = payload.tanggalPensiun !== undefined ? payload.tanggalPensiun.trim() : currentEmp.tanggalPensiun;
+
+  // Check if Emp ID already used by another record in the same period
+  if (newEmpId) {
+    const isDuplicate = employees.some(
+      (e) =>
+        e.rowIndex !== rowIndex &&
+        e.empId.trim().toLowerCase() === newEmpId.toLowerCase() &&
+        Number(e.tahun) === Number(newTahun) &&
+        Number(e.bulan) === Number(newBulan)
+    );
+    if (isDuplicate) {
+      return {
+        success: false,
+        message: `Emp. ID "${newEmpId}" sudah digunakan oleh karyawan lain pada periode ${newTahun}/${newBulan}.`,
+        employees
+      };
+    }
+  }
+
+  // Recalculate score & automatic standard adjustment:
+  // If autoAdjustStandard is true (or not specified) or jabatan changed, standard automatically adjusts to new jabatan standard.
+  // If customStandard is explicitly supplied (> 0), use that custom standard.
+  const jabatanChanged = newJabatan.toLowerCase() !== currentEmp.jabatan.toLowerCase();
+  
+  let targetStandard: number | null = currentEmp.standard;
+  if (payload.customStandard !== undefined) {
+    targetStandard = payload.customStandard;
+  } else if (payload.autoAdjustStandard !== false || jabatanChanged || currentEmp.standard === null) {
+    // Automatically adjust to standard threshold of new jabatan
+    targetStandard = null; // calculateEmployeeScore will resolve default standard according to getJabatanCategory
+  }
+
+  const calc = calculateEmployeeScore(currentEmp.skills, newJabatan, targetStandard);
+
+  const updatedEmployee: Employee = {
+    ...currentEmp,
+    empId: newEmpId,
+    empName: newEmpName,
+    divisi: newDivisi,
+    department: newDepartment,
+    section: newSection,
+    grade: newGrade,
+    jobGrade: newJobGrade,
+    jabatan: newJabatan,
+    gender: newGender,
+    pic: newPic,
+    tahun: newTahun,
+    bulan: newBulan,
+    tanggalPensiun: newTanggalPensiun,
+    jobCategory: calc.jobCategory,
+    totalScore: calc.totalScore,
+    standard: calc.standard,
+    result: calc.result,
+    gap: calc.gap
+  };
+
+  const updatedEmployees = [...employees];
+  updatedEmployees[index] = updatedEmployee;
+  saveStoredEmployees(updatedEmployees);
+
+  const stdMsg = updatedEmployee.standard !== null ? ` Standar otomatis disesuaikan ke: ≥ ${updatedEmployee.standard}.` : '';
+
+  return {
+    success: true,
+    message: `Profil karyawan ${newEmpName} berhasil diperbarui.${stdMsg}`,
+    employees: updatedEmployees,
+    updatedEmployee
+  };
 }
 
 export function deleteEmployee(employees: Employee[], rowIndex: number): { success: boolean; message: string; employees: Employee[] } {
