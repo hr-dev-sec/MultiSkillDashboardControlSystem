@@ -391,15 +391,15 @@ export function generateMultiSkillReportPdf({
   const drawJobPositionTable = () => {
     drawSectionHeading('Rekap per Job Position');
 
-    const posRows = byPosition.map((p) => {
+    const posRows = (byPosition || []).map((p) => {
       return [
-        p.label,
-        String(p.threshold),
-        (p.target * 100).toFixed(1),
-        String(p.ok),
-        String(p.notOk),
-        String(p.manpower),
-        (p.resultPercent * 100).toFixed(1)
+        p?.label || '',
+        String(p?.threshold ?? 0),
+        ((p?.target ?? 0) * 100).toFixed(1),
+        String(p?.ok ?? 0),
+        String(p?.notOk ?? 0),
+        String(p?.manpower ?? 0),
+        ((p?.resultPercent ?? 0) * 100).toFixed(1)
       ];
     });
 

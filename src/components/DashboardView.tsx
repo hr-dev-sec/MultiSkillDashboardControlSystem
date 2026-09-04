@@ -77,6 +77,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     lastUpdated
   } = stats;
 
+  const safeByPosition = Array.isArray(byPosition) ? byPosition : [];
+
   // Local interactive view toggles
   const [positionViewMode, setPositionViewMode] = useState<'percent' | 'count'>('percent');
   const [divisiViewMode, setDivisiViewMode] = useState<'stacked' | 'percent'>('stacked');
@@ -173,13 +175,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // 1. Chart: Target vs Result per Job Position
   // ----------------------------------------------------
   const positionChartData = {
-    labels: byPosition.map((p) => p.label),
+    labels: safeByPosition.map((p) => p?.label || ''),
     datasets:
       positionViewMode === 'percent'
         ? [
             {
               label: 'Target KPI (%)',
-              data: byPosition.map((p) => Number((p.target * 100).toFixed(1))),
+              data: safeByPosition.map((p) => Number(((p?.target ?? 0) * 100).toFixed(1))),
               backgroundColor: (context: any) => {
                 const ctx = context.chart.ctx;
                 const gradient = ctx.createLinearGradient(0, 0, 0, 300);
@@ -200,7 +202,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             },
             {
               label: 'Result Aktual (%)',
-              data: byPosition.map((p) => Number((p.resultPercent * 100).toFixed(1))),
+              data: safeByPosition.map((p) => Number(((p?.resultPercent ?? 0) * 100).toFixed(1))),
               backgroundColor: (context: any) => {
                 const ctx = context.chart.ctx;
                 const gradient = ctx.createLinearGradient(0, 0, 0, 300);
@@ -225,7 +227,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         : [
             {
               label: 'MS (Standar)',
-              data: byPosition.map((p) => p.ok),
+              data: safeByPosition.map((p) => p?.ok ?? 0),
               backgroundColor: (context: any) => {
                 const ctx = context.chart.ctx;
                 const gradient = ctx.createLinearGradient(0, 0, 0, 300);
@@ -248,7 +250,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             },
             {
               label: 'Total Manpower',
-              data: byPosition.map((p) => p.manpower),
+              data: safeByPosition.map((p) => p?.manpower ?? 0),
               backgroundColor: (context: any) => {
                 const ctx = context.chart.ctx;
                 const gradient = ctx.createLinearGradient(0, 0, 0, 300);
@@ -770,11 +772,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   // 6. Chart: Manpower per Job Position (Dual Bar)
   // ----------------------------------------------------
   const manpowerPositionData = {
-    labels: byPosition.map((p) => p.label),
+    labels: safeByPosition.map((p) => p?.label || ''),
     datasets: [
       {
         label: 'Standar (MS / OK)',
-        data: byPosition.map((p) => p.ok),
+        data: safeByPosition.map((p) => p?.ok ?? 0),
         backgroundColor: (context: any) => {
           const ctx = context.chart.ctx;
           const gradient = ctx.createLinearGradient(0, 0, 0, 300);
@@ -797,7 +799,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       },
       {
         label: 'Belum Standar (US / Not OK)',
-        data: byPosition.map((p) => p.notOk),
+        data: safeByPosition.map((p) => p?.notOk ?? 0),
         backgroundColor: (context: any) => {
           const ctx = context.chart.ctx;
           const gradient = ctx.createLinearGradient(0, 0, 0, 300);

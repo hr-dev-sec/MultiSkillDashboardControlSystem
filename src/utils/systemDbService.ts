@@ -28,7 +28,15 @@ async function safeParseJson<T = any>(res: Response, fallbackMessage: string): P
         message: parsed?.message || (res.ok ? 'Sukses' : fallbackMessage)
       };
     }
-    // If server returned text/html (e.g. 404 or Vite proxying during startup)
+    // If server returned 404 (e.g. static hosting environment like Vercel or GitHub Pages)
+    if (res.status === 404) {
+      return {
+        ok: false,
+        data: null,
+        message: fallbackMessage || 'API endpoint tidak tersedia di host ini (mode client-only aktif).'
+      };
+    }
+    // If server returned text/html (e.g. other error or Vite proxying during startup)
     const text = await res.text();
     console.warn(`Non-JSON response (${res.status}):`, text.slice(0, 120));
     return {
@@ -621,6 +629,9 @@ export async function saveEmployeesToServer(employees: any[]): Promise<{ success
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ employees })
     });
+    if (res.status === 404) {
+      return { success: false, message: 'Server database tidak aktif pada host ini.' };
+    }
     const { ok, data } = await safeParseJson<{ success: boolean; message: string }>(res, 'Gagal menyimpan ke server.');
     if (ok && data) {
       return data;
@@ -637,6 +648,9 @@ export async function saveEmployeesToServer(employees: any[]): Promise<{ success
 export async function fetchEmployeesFromServer(): Promise<any[] | null> {
   try {
     const res = await fetch('/api/employees');
+    if (res.status === 404) {
+      return null;
+    }
     const { ok, data } = await safeParseJson<{ success: boolean; employees: any[] }>(res, 'Gagal memuat dari server.');
     if (ok && data?.success && Array.isArray(data.employees) && data.employees.length > 0) {
       return data.employees;

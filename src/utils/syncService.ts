@@ -1,6 +1,6 @@
 import { Employee, SkillMeta, UserAccount, UserScopeType } from '../types';
 import { INITIAL_SKILL_META, calculateEmployeeScore, BULAN_LABELS } from '../data/initialData';
-import { saveStoredEmployees } from './storage';
+import { saveStoredEmployees, normalizeJobCategory } from './storage';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 export interface SupabaseConfig {
@@ -991,7 +991,7 @@ export async function fetchSupabaseEmployees(
       const resolvedResult = (calc.totalScore > 0 || hasParsedSkills) ? calc.result : (r.result || (resolvedTotalScore >= (customStandard || 4) ? 'MS' : 'US'));
       const resolvedStandard = (calc.standard > 0 || hasParsedSkills) ? calc.standard : Number(r.standard ?? 4);
       const resolvedGap = (calc.totalScore > 0 || hasParsedSkills) ? calc.gap : Number(r.gap ?? (resolvedTotalScore - resolvedStandard));
-      const resolvedJobCategory = calc.jobCategory || r.job_category || r.jobCategory || 'LL / Foreman';
+      const resolvedJobCategory = normalizeJobCategory(calc.jobCategory || r.job_category || r.jobCategory, jabatan);
 
       parsed.push({
         rowIndex: ++maxRowIndex,
@@ -1842,7 +1842,7 @@ function doGet(e) {
       pic: String(row[11] || ''),
       tahun: Number(row[12]) || 2026,
       bulan: Number(row[13]) || 8,
-      jobCategory: String(row[14] || ''),
+      jobCategory: normalizeJobCategory(row[14], String(row[8] || '')),
       totalScore: Number(row[15]) || 0,
       standard: Number(row[16]) || 0,
       result: String(row[17] || 'US'),

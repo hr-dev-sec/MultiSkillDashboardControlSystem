@@ -21,7 +21,8 @@ import {
   GRADE_ORDER,
   BULAN_LABELS,
   generateInitialEmployees,
-  calculateEmployeeScore
+  calculateEmployeeScore,
+  getJabatanCategory
 } from '../data/initialData';
 import {
   fetchSystemInit,
@@ -52,6 +53,53 @@ const STORAGE_KEYS = {
 
 export const AJINOMOTO_LOGO_URL = 'https://upload.wikimedia.org/wikipedia/commons/0/01/Ajinomoto_Group_Global_Brand_logo.png';
 
+/**
+ * Robust normalizer for JobPositionCategory to prevent undefined index lookups
+ */
+export function normalizeJobCategory(rawCategory: any, jabatan?: string): JobPositionCategory | null {
+  if (rawCategory && typeof rawCategory === 'string') {
+    const raw = rawCategory.trim().toUpperCase();
+    if (
+      raw === 'DEPT_MGR_UP' ||
+      raw.includes('DEPT_MGR') ||
+      raw.includes('DEPT. MGR') ||
+      raw.includes('DEPT MGR') ||
+      raw.includes('DEPARTMENT MANAGER')
+    ) {
+      return 'DEPT_MGR_UP';
+    }
+    if (
+      raw === 'ASM_SM' ||
+      raw.includes('ASM_SM') ||
+      raw.includes('ASM - SM') ||
+      raw.includes('SECTION MGR') ||
+      raw.includes('SECTION MANAGER') ||
+      raw === 'ASM' ||
+      raw === 'SM'
+    ) {
+      return 'ASM_SM';
+    }
+    if (
+      raw === 'LL_FOREMAN' ||
+      raw.includes('LL_FOREMAN') ||
+      raw.includes('LL - FOREMAN') ||
+      raw.includes('LL / FOREMAN') ||
+      raw.includes('FOREMAN') ||
+      raw.includes('LINE LEADER') ||
+      raw.includes('LEADER')
+    ) {
+      return 'LL_FOREMAN';
+    }
+  }
+
+  // Fallback to resolving from jabatan if provided
+  if (jabatan) {
+    return getJabatanCategory(jabatan);
+  }
+
+  return null;
+}
+
 // Storage helpers
 export function getStoredEmployees(): Employee[] {
   try {
@@ -69,17 +117,18 @@ export function getStoredEmployees(): Employee[] {
     const sanitized = employees.map((emp) => {
       const skills = emp.skills || {};
       const calc = calculateEmployeeScore(skills, emp.jabatan, emp.standard);
+      const normalizedCat = normalizeJobCategory(emp.jobCategory, emp.jabatan) || calc.jobCategory;
       if (
         emp.totalScore !== calc.totalScore ||
         emp.result !== calc.result ||
         emp.standard !== calc.standard ||
         emp.gap !== calc.gap ||
-        emp.jobCategory !== calc.jobCategory
+        emp.jobCategory !== normalizedCat
       ) {
         needsUpdate = true;
         return {
           ...emp,
-          jobCategory: calc.jobCategory,
+          jobCategory: normalizedCat,
           totalScore: calc.totalScore,
           standard: calc.standard,
           result: calc.result,
@@ -798,12 +847,17 @@ export function computeDashboardStats(employees: Employee[], configMeta: ConfigM
   const genderMap = { L: 0, P: 0, Lainnya: 0 };
 
   employees.forEach((emp) => {
+    if (!emp) return;
     if (emp.result === 'MS') totalMS++;
     else if (emp.result === 'US') totalUS++;
 
-    if (emp.jobCategory && emp.result) {
-      if (emp.result === 'MS') byPosition[emp.jobCategory].ok++;
-      else byPosition[emp.jobCategory].notOk++;
+    const posKey = normalizeJobCategory(emp.jobCategory, emp.jabatan);
+    if (posKey && byPosition[posKey]) {
+      if (emp.result === 'MS') {
+        byPosition[posKey].ok++;
+      } else {
+        byPosition[posKey].notOk++;
+      }
     }
 
     const divisiKey = emp.divisi || '(Tanpa Divisi)';
@@ -831,18 +885,21 @@ export function computeDashboardStats(employees: Employee[], configMeta: ConfigM
 
   const positionKeys: JobPositionCategory[] = ['DEPT_MGR_UP', 'ASM_SM', 'LL_FOREMAN'];
   const byPositionArray: PositionStat[] = positionKeys.map((key) => {
-    const meta = jobPositionMeta[key];
-    const counts = byPosition[key];
-    const manpower = counts.ok + counts.notOk;
+    const meta = jobPositionMeta?.[key] || { label: key, threshold: 2 };
+    const counts = byPosition[key] || { ok: 0, notOk: 0 };
+    const ok = counts.ok || 0;
+    const notOk = counts.notOk || 0;
+    const manpower = ok + notOk;
+    const target = targetPercent?.[key] ?? 0.3;
     return {
       key,
       label: meta.label,
       threshold: meta.threshold,
-      target: targetPercent[key],
+      target,
       manpower,
-      ok: counts.ok,
-      notOk: counts.notOk,
-      resultPercent: manpower > 0 ? counts.ok / manpower : 0
+      ok,
+      notOk,
+      resultPercent: manpower > 0 ? ok / manpower : 0
     };
   });
 
