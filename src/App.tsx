@@ -261,8 +261,9 @@ export default function App() {
   // Check initial session & auto-sync system DB & employee data on boot
   useEffect(() => {
     const session = getSession();
-    if (session) {
+    if (session && session.username) {
       setCurrentUser(session);
+      setCurrentScreen('app');
     }
 
     loadDatabaseFromSource();

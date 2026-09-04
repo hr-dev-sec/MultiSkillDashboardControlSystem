@@ -173,9 +173,9 @@ export async function syncSystemFromBackend(): Promise<{ users: UserAccount[]; c
     if (initData) {
       systemConfig = initData.config;
       
-      // Auto-propagate Supabase config from Server to any fresh/incognito browser
+      // Auto-propagate Supabase config between Server DB and client localStorage
+      const localSb = getSupabaseConfig();
       if (initData.config?.supabaseConfig && initData.config.supabaseConfig.url && initData.config.supabaseConfig.anonKey) {
-        const localSb = getSupabaseConfig();
         if (!localSb.url || !localSb.anonKey) {
           try {
             localStorage.setItem('msm_supabase_config_v1', JSON.stringify(initData.config.supabaseConfig));
@@ -188,6 +188,17 @@ export async function syncSystemFromBackend(): Promise<{ users: UserAccount[]; c
             saveStoredUsers(syncedUsers);
           }
         }
+      } else if (localSb.url && localSb.anonKey) {
+        // Persist local Supabase credentials to server database so all clients share it
+        fetch('/api/system/supabase-config', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url: localSb.url,
+            anonKey: localSb.anonKey,
+            tableName: localSb.tableName || 'employees_multi_skill'
+          })
+        }).catch(() => {});
       }
 
       if (syncedUsers.length === 0 && initData.users && initData.users.length > 0) {
@@ -708,9 +719,14 @@ export function getDefaultFilterPeriod(employees: Employee[]): { tahun: string[]
 
   const currentWeight = currentYear * 12 + currentMonth;
 
+  // Utamakan periode dengan data lengkap (misal >= 3 karyawan jika ada periode representatif lainnya)
+  const maxCount = Math.max(...periodList.map((p) => p.count));
+  const substantialPeriods = maxCount >= 5 ? periodList.filter((p) => p.count >= 3) : periodList;
+  const candidates = substantialPeriods.length > 0 ? substantialPeriods : periodList;
+
   // Utamakan data terakhir yang <= waktu sekarang (waktu terdekat yang sudah ada)
-  const pastOrPresent = periodList.filter((p) => p.weight <= currentWeight);
-  const bestPeriod = pastOrPresent.length > 0 ? pastOrPresent[0] : periodList[0];
+  const pastOrPresent = candidates.filter((p) => p.weight <= currentWeight);
+  const bestPeriod = pastOrPresent.length > 0 ? pastOrPresent[0] : candidates[0];
 
   return {
     tahun: [String(bestPeriod.tahun)],

@@ -70,15 +70,13 @@ export function saveSupabaseConfig(config: SupabaseConfig): void {
 
     // Also persist Supabase configuration to centralized server database
     // so any browser, incognito window, or new device automatically connects
-    fetch('/api/system/config', {
+    fetch('/api/system/supabase-config', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        supabaseConfig: {
-          url: config.url,
-          anonKey: config.anonKey,
-          tableName: config.tableName || 'employees_multi_skill'
-        }
+        url: config.url,
+        anonKey: config.anonKey,
+        tableName: config.tableName || 'employees_multi_skill'
       })
     }).catch((err) => {
       console.warn('Could not persist Supabase config to server:', err);

@@ -1,12 +1,12 @@
 {
   "version": "2.0",
   "databaseName": "PT Ajinomoto Indonesia - Employees Multi-Skill Database",
-  "lastUpdated": "2026-09-04T07:04:10.020Z",
+  "lastUpdated": "2026-09-04T07:47:10.324Z",
   "totalEmployees": 84,
   "employees": [
     {
-      "rowIndex": 7,
-      "no": 1,
+      "rowIndex": 8,
+      "no": 2,
       "empId": "AJN-MJK-0101",
       "empName": "Ahmad Fadhil Kurniawan",
       "divisi": "Produksi MSG & Seasoning",
@@ -121,8 +121,8 @@
       }
     },
     {
-      "rowIndex": 8,
-      "no": 2,
+      "rowIndex": 9,
+      "no": 3,
       "empId": "AJN-MJK-0102",
       "empName": "Siti Nurhaliza Rahayu",
       "divisi": "Produksi MSG & Seasoning",
@@ -237,8 +237,8 @@
       }
     },
     {
-      "rowIndex": 9,
-      "no": 3,
+      "rowIndex": 10,
+      "no": 4,
       "empId": "AJN-MJK-0103",
       "empName": "Budi Santoso",
       "divisi": "Produksi MSG & Seasoning",
@@ -265,122 +265,6 @@
         "FI-2 / Production": true,
         "FI-2 / Supporting": false,
         "FP-1 / EMP": false,
-        "FP-1 / Masako Bulk": false,
-        "FP-1 / Masako Pack": false,
-        "FP-2 / Sajiku Bulk": false,
-        "FP-2 / Sajiku Pack": false,
-        "FP-2 / Mayumi": false,
-        "FL-1 / Lamination": false,
-        "FL-1 / Supporting": false,
-        "IC / IC - Material": false,
-        "IC / EDC": false,
-        "PE / Procurement": false,
-        "PE / EXIM": false,
-        "PPC / PPC FOOD": false,
-        "PPC / PPC Development": false,
-        "PPC / PPC MSG": false,
-        "E&M / T-1": false,
-        "E&M / T-2": false,
-        "E&M / T-3": false,
-        "Utility / Utility - 1": false,
-        "Utility / Utility - 2": false,
-        "Utility / WWT": false,
-        "Agri / Production Liquid Co-Pro.": false,
-        "Agri / Production Solid Co-Pro": false,
-        "GA / GA-1": false,
-        "GA / GA-2": false,
-        "HRL / HR Development": false,
-        "HRL / HR Operation & Administration": false,
-        "Legal / Corporate & Regulatory Compliance": false,
-        "Legal / Permit & Legal Administration": false,
-        "STTC / STTC": false,
-        "FOE / Digital Infrastructure & Security": false,
-        "FOE / Operational Aplication & Development": false,
-        "HSE / Health & Safety": false,
-        "HSE / Environment": false,
-        "QA NE / Quality Assurance": false,
-        "QA NE / Quality Control": false,
-        "ITEC Proc.": false,
-        "ITEC Proj.": false,
-        "Prod. / H-0": false,
-        "Prod. / H-2": false,
-        "Prod. / H-4": false,
-        "Prod. / H-5,6": false,
-        "Prod. / H-7": false,
-        "QA NEX / QA": false,
-        "FA": false,
-        "IFTC / Food Dev.": false,
-        "IFTC / Packing & Printing": false,
-        "IFTC / IFTC - Krw": false,
-        "IFTC Eng. / Eng. Food & MSG": false,
-        "PPIC NEX / IC": false,
-        "PPIC NEX / PPC": false,
-        "ABI / Production": false,
-        "FP-1 KRW / Masako Bulk": false,
-        "FP-1 KRW / Masako Pack": false,
-        "FP-2 KRW / Sajiku Bulk": false,
-        "FP-2 KRW / Sajiku Pack": false,
-        "FP-3 KRW / Saori Bulk": false,
-        "FP-3 KRW / Saori Pack": false,
-        "PPIC KRW / PPC": false,
-        "PPIC KRW / IC - Material": false,
-        "PPIC KRW / KDC": false,
-        "GA KRW / Personnel": false,
-        "GA KRW / General Affairs": false,
-        "GA KRW / Legal & Asset": false,
-        "PS KRW / Utility": false,
-        "PS KRW / EM - 1": false,
-        "PS KRW / EM - 2": false,
-        "PS KRW / HSE": false,
-        "PS KRW / WWT & Utilization": false,
-        "QA KRW / QA": false,
-        "QA KRW / QC": false,
-        "FT / Process Technology": false,
-        "FT / Packing Printing": false,
-        "FE / Food Engineering": false,
-        "SSP / Food Material SSD": false,
-        "SSP / Packaging Material SSD": false,
-        "SSP / Consumable Goods SSD": false,
-        "SSP / MSG, Energy & Co-Prod Material SSD": false,
-        "PSA / Production OE / DX Promotion": false,
-        "PSA / Production Administration": false,
-        "IT": false,
-        "Agri / Sales & Marketing": false,
-        "Agri / Business Dev.": false,
-        "GA HO / GA - Development": false,
-        "COEC / COEC Development": false,
-        "COEC / COEC Site Operation": false
-      }
-    },
-    {
-      "rowIndex": 10,
-      "no": 4,
-      "empId": "AJN-MJK-0104",
-      "empName": "Dimas Prasetyo Utomo",
-      "divisi": "Produksi MSG & Seasoning",
-      "department": "Fermentation Department",
-      "section": "Harvesting",
-      "grade": "ST3",
-      "jobGrade": "JG-05",
-      "jabatan": "Foreman Fermentation Line A",
-      "gender": "L",
-      "tanggalPensiun": "22 Des 2049",
-      "pic": "Siti Nurhaliza",
-      "tahun": 2026,
-      "bulan": 8,
-      "jobCategory": "LL_FOREMAN",
-      "totalScore": 2,
-      "standard": 2,
-      "result": "MS",
-      "gap": 0,
-      "skills": {
-        "FI-1 / H-1": false,
-        "FI-1 / H-2": false,
-        "FI-1 / H-4": false,
-        "FI-1 / H-5,6": false,
-        "FI-2 / Production": false,
-        "FI-2 / Supporting": true,
-        "FP-1 / EMP": true,
         "FP-1 / Masako Bulk": false,
         "FP-1 / Masako Pack": false,
         "FP-2 / Sajiku Bulk": false,
@@ -471,6 +355,122 @@
     {
       "rowIndex": 11,
       "no": 5,
+      "empId": "AJN-MJK-0104",
+      "empName": "Dimas Prasetyo Utomo",
+      "divisi": "Produksi MSG & Seasoning",
+      "department": "Fermentation Department",
+      "section": "Harvesting",
+      "grade": "ST3",
+      "jobGrade": "JG-05",
+      "jabatan": "Foreman Fermentation Line A",
+      "gender": "L",
+      "tanggalPensiun": "22 Des 2049",
+      "pic": "Siti Nurhaliza",
+      "tahun": 2026,
+      "bulan": 8,
+      "jobCategory": "LL_FOREMAN",
+      "totalScore": 2,
+      "standard": 2,
+      "result": "MS",
+      "gap": 0,
+      "skills": {
+        "FI-1 / H-1": false,
+        "FI-1 / H-2": false,
+        "FI-1 / H-4": false,
+        "FI-1 / H-5,6": false,
+        "FI-2 / Production": false,
+        "FI-2 / Supporting": true,
+        "FP-1 / EMP": true,
+        "FP-1 / Masako Bulk": false,
+        "FP-1 / Masako Pack": false,
+        "FP-2 / Sajiku Bulk": false,
+        "FP-2 / Sajiku Pack": false,
+        "FP-2 / Mayumi": false,
+        "FL-1 / Lamination": false,
+        "FL-1 / Supporting": false,
+        "IC / IC - Material": false,
+        "IC / EDC": false,
+        "PE / Procurement": false,
+        "PE / EXIM": false,
+        "PPC / PPC FOOD": false,
+        "PPC / PPC Development": false,
+        "PPC / PPC MSG": false,
+        "E&M / T-1": false,
+        "E&M / T-2": false,
+        "E&M / T-3": false,
+        "Utility / Utility - 1": false,
+        "Utility / Utility - 2": false,
+        "Utility / WWT": false,
+        "Agri / Production Liquid Co-Pro.": false,
+        "Agri / Production Solid Co-Pro": false,
+        "GA / GA-1": false,
+        "GA / GA-2": false,
+        "HRL / HR Development": false,
+        "HRL / HR Operation & Administration": false,
+        "Legal / Corporate & Regulatory Compliance": false,
+        "Legal / Permit & Legal Administration": false,
+        "STTC / STTC": false,
+        "FOE / Digital Infrastructure & Security": false,
+        "FOE / Operational Aplication & Development": false,
+        "HSE / Health & Safety": false,
+        "HSE / Environment": false,
+        "QA NE / Quality Assurance": false,
+        "QA NE / Quality Control": false,
+        "ITEC Proc.": false,
+        "ITEC Proj.": false,
+        "Prod. / H-0": false,
+        "Prod. / H-2": false,
+        "Prod. / H-4": false,
+        "Prod. / H-5,6": false,
+        "Prod. / H-7": false,
+        "QA NEX / QA": false,
+        "FA": false,
+        "IFTC / Food Dev.": false,
+        "IFTC / Packing & Printing": false,
+        "IFTC / IFTC - Krw": false,
+        "IFTC Eng. / Eng. Food & MSG": false,
+        "PPIC NEX / IC": false,
+        "PPIC NEX / PPC": false,
+        "ABI / Production": false,
+        "FP-1 KRW / Masako Bulk": false,
+        "FP-1 KRW / Masako Pack": false,
+        "FP-2 KRW / Sajiku Bulk": false,
+        "FP-2 KRW / Sajiku Pack": false,
+        "FP-3 KRW / Saori Bulk": false,
+        "FP-3 KRW / Saori Pack": false,
+        "PPIC KRW / PPC": false,
+        "PPIC KRW / IC - Material": false,
+        "PPIC KRW / KDC": false,
+        "GA KRW / Personnel": false,
+        "GA KRW / General Affairs": false,
+        "GA KRW / Legal & Asset": false,
+        "PS KRW / Utility": false,
+        "PS KRW / EM - 1": false,
+        "PS KRW / EM - 2": false,
+        "PS KRW / HSE": false,
+        "PS KRW / WWT & Utilization": false,
+        "QA KRW / QA": false,
+        "QA KRW / QC": false,
+        "FT / Process Technology": false,
+        "FT / Packing Printing": false,
+        "FE / Food Engineering": false,
+        "SSP / Food Material SSD": false,
+        "SSP / Packaging Material SSD": false,
+        "SSP / Consumable Goods SSD": false,
+        "SSP / MSG, Energy & Co-Prod Material SSD": false,
+        "PSA / Production OE / DX Promotion": false,
+        "PSA / Production Administration": false,
+        "IT": false,
+        "Agri / Sales & Marketing": false,
+        "Agri / Business Dev.": false,
+        "GA HO / GA - Development": false,
+        "COEC / COEC Development": false,
+        "COEC / COEC Site Operation": false
+      }
+    },
+    {
+      "rowIndex": 12,
+      "no": 6,
       "empId": "AJN-MJK-0105",
       "empName": "Eko Wahyudi",
       "divisi": "Produksi MSG & Seasoning",
@@ -585,8 +585,8 @@
       }
     },
     {
-      "rowIndex": 12,
-      "no": 6,
+      "rowIndex": 13,
+      "no": 7,
       "empId": "AJN-MJK-0106",
       "empName": "Hendro Kusuma Wardhana",
       "divisi": "Produksi MSG & Seasoning",
@@ -701,8 +701,8 @@
       }
     },
     {
-      "rowIndex": 13,
-      "no": 7,
+      "rowIndex": 14,
+      "no": 8,
       "empId": "AJN-MJK-0107",
       "empName": "Ratna Dewi Kusumaningrum",
       "divisi": "Produksi MSG & Seasoning",
@@ -817,8 +817,8 @@
       }
     },
     {
-      "rowIndex": 14,
-      "no": 8,
+      "rowIndex": 15,
+      "no": 9,
       "empId": "AJN-MJK-0108",
       "empName": "Guntur Pamungkas",
       "divisi": "Produksi MSG & Seasoning",
@@ -933,8 +933,8 @@
       }
     },
     {
-      "rowIndex": 15,
-      "no": 9,
+      "rowIndex": 16,
+      "no": 10,
       "empId": "AJN-MJK-0109",
       "empName": "Maya Safitri",
       "divisi": "Produksi MSG & Seasoning",
@@ -1049,8 +1049,8 @@
       }
     },
     {
-      "rowIndex": 16,
-      "no": 10,
+      "rowIndex": 17,
+      "no": 11,
       "empId": "AJN-MJK-0110",
       "empName": "Agus Triono",
       "divisi": "Produksi MSG & Seasoning",
@@ -1165,8 +1165,8 @@
       }
     },
     {
-      "rowIndex": 17,
-      "no": 11,
+      "rowIndex": 18,
+      "no": 12,
       "empId": "AJN-MJK-0111",
       "empName": "Dian Permata Sari",
       "divisi": "Produksi MSG & Seasoning",
@@ -1281,8 +1281,8 @@
       }
     },
     {
-      "rowIndex": 18,
-      "no": 12,
+      "rowIndex": 19,
+      "no": 13,
       "empId": "AJN-MJK-0112",
       "empName": "Fajar Nugroho",
       "divisi": "Produksi MSG & Seasoning",
@@ -1397,8 +1397,8 @@
       }
     },
     {
-      "rowIndex": 19,
-      "no": 13,
+      "rowIndex": 20,
+      "no": 14,
       "empId": "AJN-MJK-0113",
       "empName": "Aris Setiawan",
       "divisi": "Produksi MSG & Seasoning",
@@ -1513,8 +1513,8 @@
       }
     },
     {
-      "rowIndex": 20,
-      "no": 14,
+      "rowIndex": 21,
+      "no": 15,
       "empId": "AJN-MJK-0114",
       "empName": "Wahyu Hidayat",
       "divisi": "Engineering & Utilities",
@@ -1629,8 +1629,8 @@
       }
     },
     {
-      "rowIndex": 21,
-      "no": 15,
+      "rowIndex": 22,
+      "no": 16,
       "empId": "AJN-MJK-0115",
       "empName": "Rian Firmansyah",
       "divisi": "Engineering & Utilities",
@@ -1745,8 +1745,8 @@
       }
     },
     {
-      "rowIndex": 22,
-      "no": 16,
+      "rowIndex": 23,
+      "no": 17,
       "empId": "AJN-MJK-0116",
       "empName": "Taufik Hidayatullah",
       "divisi": "Engineering & Utilities",
@@ -1861,8 +1861,8 @@
       }
     },
     {
-      "rowIndex": 23,
-      "no": 17,
+      "rowIndex": 24,
+      "no": 18,
       "empId": "AJN-MJK-0117",
       "empName": "Bayu Anggoro",
       "divisi": "Engineering & Utilities",
@@ -1977,8 +1977,8 @@
       }
     },
     {
-      "rowIndex": 24,
-      "no": 18,
+      "rowIndex": 25,
+      "no": 19,
       "empId": "AJN-MJK-0118",
       "empName": "Nanang Suherman",
       "divisi": "Engineering & Utilities",
@@ -2093,8 +2093,8 @@
       }
     },
     {
-      "rowIndex": 25,
-      "no": 19,
+      "rowIndex": 26,
+      "no": 20,
       "empId": "AJN-MJK-0119",
       "empName": "Dra. Endang Sulistyowati",
       "divisi": "Quality & Technical",
@@ -2209,8 +2209,8 @@
       }
     },
     {
-      "rowIndex": 26,
-      "no": 20,
+      "rowIndex": 27,
+      "no": 21,
       "empId": "AJN-MJK-0120",
       "empName": "Lina Marlina",
       "divisi": "Quality & Technical",
@@ -2325,8 +2325,8 @@
       }
     },
     {
-      "rowIndex": 27,
-      "no": 21,
+      "rowIndex": 28,
+      "no": 22,
       "empId": "AJN-MJK-0121",
       "empName": "Indah Puspitasari",
       "divisi": "Quality & Technical",
@@ -2441,8 +2441,8 @@
       }
     },
     {
-      "rowIndex": 28,
-      "no": 22,
+      "rowIndex": 29,
+      "no": 23,
       "empId": "AJN-MJK-0122",
       "empName": "Reza Pahlevi",
       "divisi": "Quality & Technical",
@@ -2557,8 +2557,8 @@
       }
     },
     {
-      "rowIndex": 29,
-      "no": 23,
+      "rowIndex": 30,
+      "no": 24,
       "empId": "AJN-MJK-0123",
       "empName": "Surya Dharmawan",
       "divisi": "Quality & Technical",
@@ -2673,8 +2673,8 @@
       }
     },
     {
-      "rowIndex": 30,
-      "no": 24,
+      "rowIndex": 31,
+      "no": 25,
       "empId": "AJN-MJK-0124",
       "empName": "Tri Haryanto",
       "divisi": "Supply Chain Management",
@@ -2789,8 +2789,8 @@
       }
     },
     {
-      "rowIndex": 31,
-      "no": 25,
+      "rowIndex": 32,
+      "no": 26,
       "empId": "AJN-MJK-0125",
       "empName": "Danang Wicaksono",
       "divisi": "Supply Chain Management",
@@ -2905,8 +2905,8 @@
       }
     },
     {
-      "rowIndex": 32,
-      "no": 26,
+      "rowIndex": 33,
+      "no": 27,
       "empId": "AJN-MJK-0126",
       "empName": "Mahmud Nurdiansyah",
       "divisi": "HR & General Affairs",
@@ -3021,8 +3021,8 @@
       }
     },
     {
-      "rowIndex": 33,
-      "no": 27,
+      "rowIndex": 34,
+      "no": 28,
       "empId": "AJN-MJK-0127",
       "empName": "Nurul Hidayati",
       "divisi": "HR & General Affairs",
@@ -3137,8 +3137,8 @@
       }
     },
     {
-      "rowIndex": 34,
-      "no": 28,
+      "rowIndex": 35,
+      "no": 29,
       "empId": "AJN-MJK-0128",
       "empName": "Bagus Prakoso",
       "divisi": "HR & General Affairs",
@@ -3253,8 +3253,8 @@
       }
     },
     {
-      "rowIndex": 35,
-      "no": 29,
+      "rowIndex": 36,
+      "no": 30,
       "empId": "AJN-MJK-0101",
       "empName": "Ahmad Fadhil Kurniawan",
       "divisi": "Produksi MSG & Seasoning",
@@ -3369,8 +3369,8 @@
       }
     },
     {
-      "rowIndex": 36,
-      "no": 30,
+      "rowIndex": 37,
+      "no": 31,
       "empId": "AJN-MJK-0102",
       "empName": "Siti Nurhaliza Rahayu",
       "divisi": "Produksi MSG & Seasoning",
@@ -3485,8 +3485,8 @@
       }
     },
     {
-      "rowIndex": 37,
-      "no": 31,
+      "rowIndex": 38,
+      "no": 32,
       "empId": "AJN-MJK-0103",
       "empName": "Budi Santoso",
       "divisi": "Produksi MSG & Seasoning",
@@ -3601,8 +3601,8 @@
       }
     },
     {
-      "rowIndex": 38,
-      "no": 32,
+      "rowIndex": 39,
+      "no": 33,
       "empId": "AJN-MJK-0104",
       "empName": "Dimas Prasetyo Utomo",
       "divisi": "Produksi MSG & Seasoning",
@@ -3717,8 +3717,8 @@
       }
     },
     {
-      "rowIndex": 39,
-      "no": 33,
+      "rowIndex": 40,
+      "no": 34,
       "empId": "AJN-MJK-0105",
       "empName": "Eko Wahyudi",
       "divisi": "Produksi MSG & Seasoning",
@@ -3833,8 +3833,8 @@
       }
     },
     {
-      "rowIndex": 40,
-      "no": 34,
+      "rowIndex": 41,
+      "no": 35,
       "empId": "AJN-MJK-0106",
       "empName": "Hendro Kusuma Wardhana",
       "divisi": "Produksi MSG & Seasoning",
@@ -3949,8 +3949,8 @@
       }
     },
     {
-      "rowIndex": 41,
-      "no": 35,
+      "rowIndex": 42,
+      "no": 36,
       "empId": "AJN-MJK-0107",
       "empName": "Ratna Dewi Kusumaningrum",
       "divisi": "Produksi MSG & Seasoning",
@@ -4065,8 +4065,8 @@
       }
     },
     {
-      "rowIndex": 42,
-      "no": 36,
+      "rowIndex": 43,
+      "no": 37,
       "empId": "AJN-MJK-0108",
       "empName": "Guntur Pamungkas",
       "divisi": "Produksi MSG & Seasoning",
@@ -4181,8 +4181,8 @@
       }
     },
     {
-      "rowIndex": 43,
-      "no": 37,
+      "rowIndex": 44,
+      "no": 38,
       "empId": "AJN-MJK-0109",
       "empName": "Maya Safitri",
       "divisi": "Produksi MSG & Seasoning",
@@ -4297,8 +4297,8 @@
       }
     },
     {
-      "rowIndex": 44,
-      "no": 38,
+      "rowIndex": 45,
+      "no": 39,
       "empId": "AJN-MJK-0110",
       "empName": "Agus Triono",
       "divisi": "Produksi MSG & Seasoning",
@@ -4413,8 +4413,8 @@
       }
     },
     {
-      "rowIndex": 45,
-      "no": 39,
+      "rowIndex": 46,
+      "no": 40,
       "empId": "AJN-MJK-0111",
       "empName": "Dian Permata Sari",
       "divisi": "Produksi MSG & Seasoning",
@@ -4529,8 +4529,8 @@
       }
     },
     {
-      "rowIndex": 46,
-      "no": 40,
+      "rowIndex": 47,
+      "no": 41,
       "empId": "AJN-MJK-0112",
       "empName": "Fajar Nugroho",
       "divisi": "Produksi MSG & Seasoning",
@@ -4645,8 +4645,8 @@
       }
     },
     {
-      "rowIndex": 47,
-      "no": 41,
+      "rowIndex": 48,
+      "no": 42,
       "empId": "AJN-MJK-0113",
       "empName": "Aris Setiawan",
       "divisi": "Produksi MSG & Seasoning",
@@ -4761,8 +4761,8 @@
       }
     },
     {
-      "rowIndex": 48,
-      "no": 42,
+      "rowIndex": 49,
+      "no": 43,
       "empId": "AJN-MJK-0114",
       "empName": "Wahyu Hidayat",
       "divisi": "Engineering & Utilities",
@@ -4877,8 +4877,8 @@
       }
     },
     {
-      "rowIndex": 49,
-      "no": 43,
+      "rowIndex": 50,
+      "no": 44,
       "empId": "AJN-MJK-0115",
       "empName": "Rian Firmansyah",
       "divisi": "Engineering & Utilities",
@@ -4993,8 +4993,8 @@
       }
     },
     {
-      "rowIndex": 50,
-      "no": 44,
+      "rowIndex": 51,
+      "no": 45,
       "empId": "AJN-MJK-0116",
       "empName": "Taufik Hidayatullah",
       "divisi": "Engineering & Utilities",
@@ -5109,8 +5109,8 @@
       }
     },
     {
-      "rowIndex": 51,
-      "no": 45,
+      "rowIndex": 52,
+      "no": 46,
       "empId": "AJN-MJK-0117",
       "empName": "Bayu Anggoro",
       "divisi": "Engineering & Utilities",
@@ -5225,8 +5225,8 @@
       }
     },
     {
-      "rowIndex": 52,
-      "no": 46,
+      "rowIndex": 53,
+      "no": 47,
       "empId": "AJN-MJK-0118",
       "empName": "Nanang Suherman",
       "divisi": "Engineering & Utilities",
@@ -5341,8 +5341,8 @@
       }
     },
     {
-      "rowIndex": 53,
-      "no": 47,
+      "rowIndex": 54,
+      "no": 48,
       "empId": "AJN-MJK-0119",
       "empName": "Dra. Endang Sulistyowati",
       "divisi": "Quality & Technical",
@@ -5457,8 +5457,8 @@
       }
     },
     {
-      "rowIndex": 54,
-      "no": 48,
+      "rowIndex": 55,
+      "no": 49,
       "empId": "AJN-MJK-0120",
       "empName": "Lina Marlina",
       "divisi": "Quality & Technical",
@@ -5573,8 +5573,8 @@
       }
     },
     {
-      "rowIndex": 55,
-      "no": 49,
+      "rowIndex": 56,
+      "no": 50,
       "empId": "AJN-MJK-0121",
       "empName": "Indah Puspitasari",
       "divisi": "Quality & Technical",
@@ -5689,8 +5689,8 @@
       }
     },
     {
-      "rowIndex": 56,
-      "no": 50,
+      "rowIndex": 57,
+      "no": 51,
       "empId": "AJN-MJK-0122",
       "empName": "Reza Pahlevi",
       "divisi": "Quality & Technical",
@@ -5805,8 +5805,8 @@
       }
     },
     {
-      "rowIndex": 57,
-      "no": 51,
+      "rowIndex": 58,
+      "no": 52,
       "empId": "AJN-MJK-0123",
       "empName": "Surya Dharmawan",
       "divisi": "Quality & Technical",
@@ -5921,8 +5921,8 @@
       }
     },
     {
-      "rowIndex": 58,
-      "no": 52,
+      "rowIndex": 59,
+      "no": 53,
       "empId": "AJN-MJK-0124",
       "empName": "Tri Haryanto",
       "divisi": "Supply Chain Management",
@@ -6037,8 +6037,8 @@
       }
     },
     {
-      "rowIndex": 59,
-      "no": 53,
+      "rowIndex": 60,
+      "no": 54,
       "empId": "AJN-MJK-0125",
       "empName": "Danang Wicaksono",
       "divisi": "Supply Chain Management",
@@ -6153,8 +6153,8 @@
       }
     },
     {
-      "rowIndex": 60,
-      "no": 54,
+      "rowIndex": 61,
+      "no": 55,
       "empId": "AJN-MJK-0126",
       "empName": "Mahmud Nurdiansyah",
       "divisi": "HR & General Affairs",
@@ -6269,8 +6269,8 @@
       }
     },
     {
-      "rowIndex": 61,
-      "no": 55,
+      "rowIndex": 62,
+      "no": 56,
       "empId": "AJN-MJK-0127",
       "empName": "Nurul Hidayati",
       "divisi": "HR & General Affairs",
@@ -6385,8 +6385,8 @@
       }
     },
     {
-      "rowIndex": 62,
-      "no": 56,
+      "rowIndex": 63,
+      "no": 57,
       "empId": "AJN-MJK-0128",
       "empName": "Bagus Prakoso",
       "divisi": "HR & General Affairs",
@@ -6501,8 +6501,8 @@
       }
     },
     {
-      "rowIndex": 63,
-      "no": 57,
+      "rowIndex": 64,
+      "no": 58,
       "empId": "AJN-MJK-0101",
       "empName": "Ahmad Fadhil Kurniawan",
       "divisi": "Produksi MSG & Seasoning",
@@ -6617,8 +6617,8 @@
       }
     },
     {
-      "rowIndex": 64,
-      "no": 58,
+      "rowIndex": 65,
+      "no": 59,
       "empId": "AJN-MJK-0102",
       "empName": "Siti Nurhaliza Rahayu",
       "divisi": "Produksi MSG & Seasoning",
@@ -6733,8 +6733,8 @@
       }
     },
     {
-      "rowIndex": 65,
-      "no": 59,
+      "rowIndex": 66,
+      "no": 60,
       "empId": "AJN-MJK-0103",
       "empName": "Budi Santoso",
       "divisi": "Produksi MSG & Seasoning",
@@ -6849,8 +6849,8 @@
       }
     },
     {
-      "rowIndex": 66,
-      "no": 60,
+      "rowIndex": 67,
+      "no": 61,
       "empId": "AJN-MJK-0104",
       "empName": "Dimas Prasetyo Utomo",
       "divisi": "Produksi MSG & Seasoning",
@@ -6965,8 +6965,8 @@
       }
     },
     {
-      "rowIndex": 67,
-      "no": 61,
+      "rowIndex": 68,
+      "no": 62,
       "empId": "AJN-MJK-0105",
       "empName": "Eko Wahyudi",
       "divisi": "Produksi MSG & Seasoning",
@@ -7081,8 +7081,8 @@
       }
     },
     {
-      "rowIndex": 68,
-      "no": 62,
+      "rowIndex": 69,
+      "no": 63,
       "empId": "AJN-MJK-0106",
       "empName": "Hendro Kusuma Wardhana",
       "divisi": "Produksi MSG & Seasoning",
@@ -7197,8 +7197,8 @@
       }
     },
     {
-      "rowIndex": 69,
-      "no": 63,
+      "rowIndex": 70,
+      "no": 64,
       "empId": "AJN-MJK-0107",
       "empName": "Ratna Dewi Kusumaningrum",
       "divisi": "Produksi MSG & Seasoning",
@@ -7313,8 +7313,8 @@
       }
     },
     {
-      "rowIndex": 70,
-      "no": 64,
+      "rowIndex": 71,
+      "no": 65,
       "empId": "AJN-MJK-0108",
       "empName": "Guntur Pamungkas",
       "divisi": "Produksi MSG & Seasoning",
@@ -7429,8 +7429,8 @@
       }
     },
     {
-      "rowIndex": 71,
-      "no": 65,
+      "rowIndex": 72,
+      "no": 66,
       "empId": "AJN-MJK-0109",
       "empName": "Maya Safitri",
       "divisi": "Produksi MSG & Seasoning",
@@ -7545,8 +7545,8 @@
       }
     },
     {
-      "rowIndex": 72,
-      "no": 66,
+      "rowIndex": 73,
+      "no": 67,
       "empId": "AJN-MJK-0110",
       "empName": "Agus Triono",
       "divisi": "Produksi MSG & Seasoning",
@@ -7661,8 +7661,8 @@
       }
     },
     {
-      "rowIndex": 73,
-      "no": 67,
+      "rowIndex": 74,
+      "no": 68,
       "empId": "AJN-MJK-0111",
       "empName": "Dian Permata Sari",
       "divisi": "Produksi MSG & Seasoning",
@@ -7777,8 +7777,8 @@
       }
     },
     {
-      "rowIndex": 74,
-      "no": 68,
+      "rowIndex": 75,
+      "no": 69,
       "empId": "AJN-MJK-0112",
       "empName": "Fajar Nugroho",
       "divisi": "Produksi MSG & Seasoning",
@@ -7893,8 +7893,8 @@
       }
     },
     {
-      "rowIndex": 75,
-      "no": 69,
+      "rowIndex": 76,
+      "no": 70,
       "empId": "AJN-MJK-0113",
       "empName": "Aris Setiawan",
       "divisi": "Produksi MSG & Seasoning",
@@ -8009,8 +8009,8 @@
       }
     },
     {
-      "rowIndex": 76,
-      "no": 70,
+      "rowIndex": 77,
+      "no": 71,
       "empId": "AJN-MJK-0114",
       "empName": "Wahyu Hidayat",
       "divisi": "Engineering & Utilities",
@@ -8125,8 +8125,8 @@
       }
     },
     {
-      "rowIndex": 77,
-      "no": 71,
+      "rowIndex": 78,
+      "no": 72,
       "empId": "AJN-MJK-0115",
       "empName": "Rian Firmansyah",
       "divisi": "Engineering & Utilities",
@@ -8241,8 +8241,8 @@
       }
     },
     {
-      "rowIndex": 78,
-      "no": 72,
+      "rowIndex": 79,
+      "no": 73,
       "empId": "AJN-MJK-0116",
       "empName": "Taufik Hidayatullah",
       "divisi": "Engineering & Utilities",
@@ -8357,8 +8357,8 @@
       }
     },
     {
-      "rowIndex": 79,
-      "no": 73,
+      "rowIndex": 80,
+      "no": 74,
       "empId": "AJN-MJK-0117",
       "empName": "Bayu Anggoro",
       "divisi": "Engineering & Utilities",
@@ -8473,8 +8473,8 @@
       }
     },
     {
-      "rowIndex": 80,
-      "no": 74,
+      "rowIndex": 81,
+      "no": 75,
       "empId": "AJN-MJK-0118",
       "empName": "Nanang Suherman",
       "divisi": "Engineering & Utilities",
@@ -8589,8 +8589,8 @@
       }
     },
     {
-      "rowIndex": 81,
-      "no": 75,
+      "rowIndex": 82,
+      "no": 76,
       "empId": "AJN-MJK-0119",
       "empName": "Dra. Endang Sulistyowati",
       "divisi": "Quality & Technical",
@@ -8705,8 +8705,8 @@
       }
     },
     {
-      "rowIndex": 82,
-      "no": 76,
+      "rowIndex": 83,
+      "no": 77,
       "empId": "AJN-MJK-0120",
       "empName": "Lina Marlina",
       "divisi": "Quality & Technical",
@@ -8821,8 +8821,8 @@
       }
     },
     {
-      "rowIndex": 83,
-      "no": 77,
+      "rowIndex": 84,
+      "no": 78,
       "empId": "AJN-MJK-0121",
       "empName": "Indah Puspitasari",
       "divisi": "Quality & Technical",
@@ -8937,8 +8937,8 @@
       }
     },
     {
-      "rowIndex": 84,
-      "no": 78,
+      "rowIndex": 85,
+      "no": 79,
       "empId": "AJN-MJK-0122",
       "empName": "Reza Pahlevi",
       "divisi": "Quality & Technical",
@@ -9053,8 +9053,8 @@
       }
     },
     {
-      "rowIndex": 85,
-      "no": 79,
+      "rowIndex": 86,
+      "no": 80,
       "empId": "AJN-MJK-0123",
       "empName": "Surya Dharmawan",
       "divisi": "Quality & Technical",
@@ -9169,8 +9169,8 @@
       }
     },
     {
-      "rowIndex": 86,
-      "no": 80,
+      "rowIndex": 87,
+      "no": 81,
       "empId": "AJN-MJK-0124",
       "empName": "Tri Haryanto",
       "divisi": "Supply Chain Management",
@@ -9285,8 +9285,8 @@
       }
     },
     {
-      "rowIndex": 87,
-      "no": 81,
+      "rowIndex": 88,
+      "no": 82,
       "empId": "AJN-MJK-0125",
       "empName": "Danang Wicaksono",
       "divisi": "Supply Chain Management",
@@ -9401,8 +9401,8 @@
       }
     },
     {
-      "rowIndex": 88,
-      "no": 82,
+      "rowIndex": 89,
+      "no": 83,
       "empId": "AJN-MJK-0126",
       "empName": "Mahmud Nurdiansyah",
       "divisi": "HR & General Affairs",
@@ -9517,8 +9517,8 @@
       }
     },
     {
-      "rowIndex": 89,
-      "no": 83,
+      "rowIndex": 90,
+      "no": 84,
       "empId": "AJN-MJK-0127",
       "empName": "Nurul Hidayati",
       "divisi": "HR & General Affairs",
@@ -9633,8 +9633,8 @@
       }
     },
     {
-      "rowIndex": 90,
-      "no": 84,
+      "rowIndex": 91,
+      "no": 85,
       "empId": "AJN-MJK-0128",
       "empName": "Bagus Prakoso",
       "divisi": "HR & General Affairs",

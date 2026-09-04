@@ -67,6 +67,11 @@ export interface SystemConfigRecord {
     ASM_SM: number;
     DEPT_MGR_UP: number;
   };
+  supabaseConfig?: {
+    url: string;
+    anonKey: string;
+    tableName: string;
+  };
   updatedAt: string;
 }
 
@@ -146,6 +151,11 @@ const DEFAULT_INITIAL_DB: SystemDatabaseSchema = {
       ASM_SM: 0.30,
       DEPT_MGR_UP: 0.30
     },
+    supabaseConfig: {
+      url: process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '',
+      anonKey: process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '',
+      tableName: process.env.SUPABASE_TABLE || process.env.VITE_SUPABASE_TABLE || 'employees_multi_skill'
+    },
     updatedAt: new Date().toISOString()
   },
   activityLogs: [
@@ -185,6 +195,17 @@ export function initSystemDatabase(): SystemDatabaseSchema {
     }
     if (!parsed.config) {
       parsed.config = DEFAULT_INITIAL_DB.config;
+    } else {
+      if (!parsed.config.supabaseConfig) {
+        parsed.config.supabaseConfig = {
+          url: process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '',
+          anonKey: process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '',
+          tableName: process.env.SUPABASE_TABLE || process.env.VITE_SUPABASE_TABLE || 'employees_multi_skill'
+        };
+      } else if (!parsed.config.supabaseConfig.url && (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL)) {
+        parsed.config.supabaseConfig.url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '';
+        parsed.config.supabaseConfig.anonKey = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+      }
     }
     if (!Array.isArray(parsed.activityLogs)) {
       parsed.activityLogs = [];

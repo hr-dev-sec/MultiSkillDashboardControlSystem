@@ -538,6 +538,50 @@ async function startServer() {
   });
 
   // =========================================================================
+  // API ROUTE: SUPABASE CLOUD DATABASE CONFIGURATION
+  // =========================================================================
+  app.get('/api/system/supabase-config', (req, res) => {
+    try {
+      const config = getSystemConfig();
+      res.json({
+        success: true,
+        supabaseConfig: config.supabaseConfig || {
+          url: '',
+          anonKey: '',
+          tableName: 'employees_multi_skill'
+        }
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: 'Gagal membaca konfigurasi Supabase.' });
+    }
+  });
+
+  app.put('/api/system/supabase-config', (req, res) => {
+    try {
+      const { url, anonKey, tableName } = req.body || {};
+      const clientIp = (req.headers['x-forwarded-for'] as string) || req.socket.remoteAddress;
+      const currentConfig = getSystemConfig();
+      const updatedSupabaseConfig = {
+        url: (url !== undefined ? url : currentConfig.supabaseConfig?.url || '').trim(),
+        anonKey: (anonKey !== undefined ? anonKey : currentConfig.supabaseConfig?.anonKey || '').trim(),
+        tableName: (tableName !== undefined ? tableName : currentConfig.supabaseConfig?.tableName || 'employees_multi_skill').trim()
+      };
+      const result = updateSystemConfig(
+        { supabaseConfig: updatedSupabaseConfig },
+        req.body.username || 'admin',
+        clientIp
+      );
+      res.json({
+        success: true,
+        message: 'Konfigurasi Supabase berhasil disimpan di database server terpusat.',
+        supabaseConfig: updatedSupabaseConfig
+      });
+    } catch (err: any) {
+      res.status(500).json({ success: false, message: 'Gagal menyimpan konfigurasi Supabase ke database server.' });
+    }
+  });
+
+  // =========================================================================
   // API ROUTE: ACTIVITY & EMAIL LOGS
   // =========================================================================
   app.get('/api/system/activity-logs', (req, res) => {
