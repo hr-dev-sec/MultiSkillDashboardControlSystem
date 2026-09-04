@@ -172,21 +172,84 @@ export default function App() {
     let hasLoadedData = false;
     notifySyncStatus('saving');
 
+    const debugTracker = {
+      timestamp: new Date().toISOString(),
+      initialLocalCount: 0,
+      syncSystemFromBackend: {
+        executed: false,
+        success: false,
+        usersCount: 0,
+        hasSupabaseConfig: false,
+        error: null as string | null
+      },
+      fetchEmployeesFromServer: {
+        executed: false,
+        success: false,
+        serverCount: 0,
+        mergedCount: 0,
+        error: null as string | null
+      },
+      fetchSupabaseEmployees: {
+        executed: false,
+        skippedReason: null as string | null,
+        success: false,
+        cloudCount: 0,
+        mergedCount: 0,
+        error: null as string | null
+      },
+      googleSheetsFallback: {
+        executed: false,
+        success: false,
+        sheetCount: 0,
+        skippedReason: null as string | null
+      },
+      finalStateCount: 0
+    };
+
+    try {
+      const initialLocal = getStoredEmployees();
+      debugTracker.initialLocalCount = initialLocal.length;
+    } catch {
+      debugTracker.initialLocalCount = 0;
+    }
+
+    console.groupCollapsed(
+      `%c[DB-Debugger] 🔄 Initiating loadDatabaseFromSource Sequence (Initial Local Count: ${debugTracker.initialLocalCount})`,
+      'color: #0284c7; font-weight: bold; font-size: 12px;'
+    );
+    console.log('[DB-Debugger] [Step 0] Initial Local Storage Count:', debugTracker.initialLocalCount);
+
     // -------------------------------------------------------------------------
     // Phase 1: Initialize System Configuration, Auth, and Credentials
     // -------------------------------------------------------------------------
+    console.log('[DB-Debugger] [Step 1] Executing syncSystemFromBackend()...');
+    debugTracker.syncSystemFromBackend.executed = true;
     let systemConfig: any = undefined;
     try {
       const syncResult = await syncSystemFromBackend();
       if (syncResult) {
+        debugTracker.syncSystemFromBackend.success = true;
+        debugTracker.syncSystemFromBackend.usersCount = syncResult.users?.length || 0;
         systemConfig = syncResult.config;
+        
+        const hasSb = Boolean(systemConfig?.supabaseConfig?.url && systemConfig?.supabaseConfig?.anonKey);
+        debugTracker.syncSystemFromBackend.hasSupabaseConfig = hasSb;
+
+        console.log(
+          `[DB-Debugger] [Step 1] ✅ syncSystemFromBackend SUCCESS - Users loaded: ${debugTracker.syncSystemFromBackend.usersCount}, Supabase Config Present: ${hasSb}`
+        );
+
         const refreshedSession = getSession();
         if (refreshedSession && refreshedSession.username) {
           setCurrentUser(refreshedSession);
         }
+      } else {
+        debugTracker.syncSystemFromBackend.success = false;
+        console.warn('[DB-Debugger] [Step 1] ⚠️ syncSystemFromBackend returned null (empty backend response).');
       }
-    } catch (e) {
-      console.warn('[System DB Init] Warning saat sinkronisasi profil/sistem:', e);
+    } catch (e: any) {
+      debugTracker.syncSystemFromBackend.error = e?.message || String(e);
+      console.error('[DB-Debugger] [Step 1] ❌ syncSystemFromBackend FAILED with error:', e);
     }
 
     // Resolve Supabase configuration: prioritize server configuration if available
@@ -197,85 +260,124 @@ export default function App() {
     // -------------------------------------------------------------------------
     // Phase 2: Instant Rehydration from Server Persistent Database (Local Server Disk)
     // -------------------------------------------------------------------------
+    console.log('[DB-Debugger] [Step 2] Executing fetchEmployeesFromServer()...');
+    debugTracker.fetchEmployeesFromServer.executed = true;
     try {
       const serverEmps = await fetchEmployeesFromServer();
-      if (serverEmps && Array.isArray(serverEmps) && serverEmps.length > 0) {
-        const currentLocal = getStoredEmployees();
-        // Smart merge server employees with current local cache (preserves all distinct periods)
-        const mergedServer = mergeEmployeesData(currentLocal, serverEmps, 'merge').updatedEmployees;
-        setEmployees(mergedServer);
-        // Persist to local storage without triggering immediate remote push
-        saveStoredEmployees(mergedServer, { skipCloudSync: true });
-
-        const defaultPeriod = getDefaultFilterPeriod(mergedServer);
-        setFilters((prev) => ({
-          ...prev,
-          tahun: defaultPeriod.tahun,
-          bulan: defaultPeriod.bulan
-        }));
-        hasLoadedData = true;
-        console.log(`[Server DB] Berhasil memuat & menyelaraskan ${mergedServer.length} karyawan dari Server Database.`);
-      }
-    } catch (serverErr) {
-      console.warn('[Server DB] Gagal memuat dari server database:', serverErr);
-    }
-
-    // -------------------------------------------------------------------------
-    // Phase 3: Supabase Cloud Database Synchronization (Authoritative Remote Source)
-    // -------------------------------------------------------------------------
-    if (sbConfig.url && sbConfig.anonKey) {
-      try {
-        console.log('[Supabase Cloud] Memeriksa data terkini dari Supabase Cloud...');
-        const sbRes = await fetchSupabaseEmployees(sbConfig);
-        if (sbRes.success && sbRes.data && sbRes.data.length > 0) {
-          const currentData = getStoredEmployees();
-          // Smart merge: Supabase Cloud is incoming, so any edits made directly in Cloud take precedence,
-          // while periods that exist only on the Server DB are fully preserved.
-          const mergedCloud = mergeEmployeesData(currentData, sbRes.data, 'merge').updatedEmployees;
+      if (serverEmps && Array.isArray(serverEmps)) {
+        debugTracker.fetchEmployeesFromServer.serverCount = serverEmps.length;
+        if (serverEmps.length > 0) {
+          debugTracker.fetchEmployeesFromServer.success = true;
+          const currentLocal = getStoredEmployees();
+          // Smart merge server employees with current local cache (preserves all distinct periods)
+          const mergedServer = mergeEmployeesData(currentLocal, serverEmps, 'merge').updatedEmployees;
+          debugTracker.fetchEmployeesFromServer.mergedCount = mergedServer.length;
           
-          // Prioritize data persistence across all levels:
-          // 1. React State
-          setEmployees(mergedCloud);
-          // 2. Client LocalStorage
-          saveStoredEmployees(mergedCloud, { skipCloudSync: true });
-          // 3. Server Disk Database (/api/employees)
-          saveEmployeesToServer(mergedCloud).catch((err) => {
-            console.warn('[Server DB] Sinkronisasi data Cloud ke Server DB disk:', err);
-          });
+          setEmployees(mergedServer);
+          // Persist to local storage without triggering immediate remote push
+          saveStoredEmployees(mergedServer, { skipCloudSync: true });
 
-          // If local/server had periods not yet in Supabase, auto-sync missing periods to Supabase
-          if (mergedCloud.length > sbRes.data.length) {
-            autoSyncEmployeesToSupabase(mergedCloud);
-          }
-
-          // Adjust filter period to optimal populated period
-          const defaultPeriod = getDefaultFilterPeriod(mergedCloud);
+          const defaultPeriod = getDefaultFilterPeriod(mergedServer);
           setFilters((prev) => ({
             ...prev,
             tahun: defaultPeriod.tahun,
             bulan: defaultPeriod.bulan
           }));
-
           hasLoadedData = true;
-          console.log(`[Supabase Cloud] Sukses menyinkronkan ${mergedCloud.length} karyawan dari Supabase Cloud.`);
-        } else if (!sbRes.success) {
-          console.warn('[Supabase Cloud] Catatan sinkronisasi Supabase:', sbRes.message);
+          console.log(
+            `[DB-Debugger] [Step 2] ✅ fetchEmployeesFromServer SUCCESS - Server Raw Count: ${serverEmps.length}, Merged Active Count: ${mergedServer.length}`
+          );
+        } else {
+          debugTracker.fetchEmployeesFromServer.success = true;
+          console.log('[DB-Debugger] [Step 2] ℹ️ fetchEmployeesFromServer returned 0 employees (empty database).');
         }
-      } catch (sbErr) {
-        console.warn('[Supabase Cloud] Gagal sinkronisasi Supabase Cloud:', sbErr);
+      } else {
+        debugTracker.fetchEmployeesFromServer.success = false;
+        console.warn('[DB-Debugger] [Step 2] ⚠️ fetchEmployeesFromServer returned invalid/null response.');
       }
+    } catch (serverErr: any) {
+      debugTracker.fetchEmployeesFromServer.error = serverErr?.message || String(serverErr);
+      console.error('[DB-Debugger] [Step 2] ❌ fetchEmployeesFromServer FAILED with error:', serverErr);
+    }
+
+    // -------------------------------------------------------------------------
+    // Phase 3: Supabase Cloud Database Synchronization (Authoritative Remote Source)
+    // -------------------------------------------------------------------------
+    console.log('[DB-Debugger] [Step 3] Evaluating Supabase configuration...');
+    debugTracker.fetchSupabaseEmployees.executed = true;
+    if (sbConfig.url && sbConfig.anonKey) {
+      try {
+        console.log(`[DB-Debugger] [Step 3] Fetching from Supabase Cloud (Table: ${sbConfig.tableName || 'employees_multi_skill'})...`);
+        const sbRes = await fetchSupabaseEmployees(sbConfig);
+        if (sbRes.success && sbRes.data) {
+          debugTracker.fetchSupabaseEmployees.success = true;
+          debugTracker.fetchSupabaseEmployees.cloudCount = sbRes.data.length;
+
+          if (sbRes.data.length > 0) {
+            const currentData = getStoredEmployees();
+            // Smart merge: Supabase Cloud is incoming, so any edits made directly in Cloud take precedence,
+            // while periods that exist only on the Server DB are fully preserved.
+            const mergedCloud = mergeEmployeesData(currentData, sbRes.data, 'merge').updatedEmployees;
+            debugTracker.fetchSupabaseEmployees.mergedCount = mergedCloud.length;
+
+            // Prioritize data persistence across all levels:
+            // 1. React State
+            setEmployees(mergedCloud);
+            // 2. Client LocalStorage
+            saveStoredEmployees(mergedCloud, { skipCloudSync: true });
+            // 3. Server Disk Database (/api/employees)
+            saveEmployeesToServer(mergedCloud).catch((err) => {
+              console.warn('[Server DB] Sinkronisasi data Cloud ke Server DB disk:', err);
+            });
+
+            // If local/server had periods not yet in Supabase, auto-sync missing periods to Supabase
+            if (mergedCloud.length > sbRes.data.length) {
+              autoSyncEmployeesToSupabase(mergedCloud);
+            }
+
+            // Adjust filter period to optimal populated period
+            const defaultPeriod = getDefaultFilterPeriod(mergedCloud);
+            setFilters((prev) => ({
+              ...prev,
+              tahun: defaultPeriod.tahun,
+              bulan: defaultPeriod.bulan
+            }));
+
+            hasLoadedData = true;
+            console.log(
+              `[DB-Debugger] [Step 3] ✅ fetchSupabaseEmployees SUCCESS - Cloud Count: ${sbRes.data.length}, Merged Active Count: ${mergedCloud.length}`
+            );
+          } else {
+            console.log('[DB-Debugger] [Step 3] ℹ️ fetchSupabaseEmployees connected successfully but table contains 0 records.');
+          }
+        } else {
+          debugTracker.fetchSupabaseEmployees.success = false;
+          debugTracker.fetchSupabaseEmployees.error = sbRes.message || 'Unknown Supabase error';
+          console.warn('[DB-Debugger] [Step 3] ⚠️ fetchSupabaseEmployees returned unsuccessful status:', sbRes.message);
+        }
+      } catch (sbErr: any) {
+        debugTracker.fetchSupabaseEmployees.error = sbErr?.message || String(sbErr);
+        console.error('[DB-Debugger] [Step 3] ❌ fetchSupabaseEmployees EXCEPTION:', sbErr);
+      }
+    } else {
+      debugTracker.fetchSupabaseEmployees.skippedReason = 'Supabase credentials (url or anonKey) are not configured';
+      console.log('[DB-Debugger] [Step 3] ⏭️ fetchSupabaseEmployees SKIPPED: URL or Anon Key not configured in system settings.');
     }
 
     // -------------------------------------------------------------------------
     // Phase 4: Google Sheets Master Fallback (Tertiary Source)
     // -------------------------------------------------------------------------
     if (!hasLoadedData) {
+      console.log('[DB-Debugger] [Step 4] Primary sources yielded no data. Checking Google Sheets Fallback...');
+      debugTracker.googleSheetsFallback.executed = true;
       const defaultSheet = systemConfig?.googleSheetUrl || getSavedGoogleSheetUrl();
       if (defaultSheet) {
         try {
-          console.log('[Google Sheets] Mengambil data dari Google Sheets Master...');
+          console.log('[DB-Debugger] [Step 4] Fetching Google Sheets Master...');
           const sheetRes = await fetchGoogleSheetData(defaultSheet);
           if (sheetRes.success && sheetRes.data && sheetRes.data.length > 0) {
+            debugTracker.googleSheetsFallback.success = true;
+            debugTracker.googleSheetsFallback.sheetCount = sheetRes.data.length;
             const currentLocal = getStoredEmployees();
             const merged = mergeEmployeesData(currentLocal, sheetRes.data, 'merge').updatedEmployees;
             setEmployees(merged);
@@ -290,13 +392,77 @@ export default function App() {
             }));
 
             hasLoadedData = true;
-            console.log(`[Google Sheets] Berhasil memuat ${sheetRes.data.length} karyawan dari Google Sheets Master.`);
+            console.log(`[DB-Debugger] [Step 4] ✅ Google Sheets Fallback SUCCESS - Loaded: ${sheetRes.data.length}`);
+          } else {
+            console.warn('[DB-Debugger] [Step 4] ⚠️ Google Sheets Fallback returned no rows.');
           }
-        } catch (sheetErr) {
-          console.warn('[Google Sheets] Gagal sinkronisasi Google Sheets:', sheetErr);
+        } catch (sheetErr: any) {
+          console.error('[DB-Debugger] [Step 4] ❌ Google Sheets Fallback FAILED:', sheetErr);
         }
+      } else {
+        debugTracker.googleSheetsFallback.skippedReason = 'No Google Sheet URL configured';
+        console.log('[DB-Debugger] [Step 4] ⏭️ Google Sheets Fallback SKIPPED: No sheet URL configured.');
       }
+    } else {
+      debugTracker.googleSheetsFallback.skippedReason = 'Data already loaded from Server DB or Supabase';
+      console.log('[DB-Debugger] [Step 4] ⏭️ Google Sheets Fallback SKIPPED: Data already loaded successfully from primary sources.');
     }
+
+    // -------------------------------------------------------------------------
+    // Final Summary & Diagnostic Table
+    // -------------------------------------------------------------------------
+    try {
+      const finalStored = getStoredEmployees();
+      debugTracker.finalStateCount = finalStored.length;
+    } catch {
+      debugTracker.finalStateCount = 0;
+    }
+
+    const flowSummary = [
+      {
+        Step: '1. syncSystemFromBackend',
+        Executed: debugTracker.syncSystemFromBackend.executed ? 'Yes' : 'No',
+        Status: debugTracker.syncSystemFromBackend.success ? '✅ Success' : debugTracker.syncSystemFromBackend.error ? '❌ Error' : '⚠️ No data',
+        RecordsLoaded: `${debugTracker.syncSystemFromBackend.usersCount} users`,
+        Notes: debugTracker.syncSystemFromBackend.error || (debugTracker.syncSystemFromBackend.hasSupabaseConfig ? 'Supabase config ready' : 'No Supabase config in server')
+      },
+      {
+        Step: '2. fetchEmployeesFromServer',
+        Executed: debugTracker.fetchEmployeesFromServer.executed ? 'Yes' : 'No',
+        Status: debugTracker.fetchEmployeesFromServer.success ? '✅ Success' : debugTracker.fetchEmployeesFromServer.error ? '❌ Error' : '⚠️ Null',
+        RecordsLoaded: `${debugTracker.fetchEmployeesFromServer.serverCount} employees`,
+        Notes: debugTracker.fetchEmployeesFromServer.error || `Merged to ${debugTracker.fetchEmployeesFromServer.mergedCount} active`
+      },
+      {
+        Step: '3. fetchSupabaseEmployees',
+        Executed: debugTracker.fetchSupabaseEmployees.executed ? 'Yes' : 'No',
+        Status: debugTracker.fetchSupabaseEmployees.skippedReason
+          ? '⏭️ Skipped'
+          : debugTracker.fetchSupabaseEmployees.success
+          ? '✅ Success'
+          : '❌ Failed',
+        RecordsLoaded: `${debugTracker.fetchSupabaseEmployees.cloudCount} employees`,
+        Notes: debugTracker.fetchSupabaseEmployees.skippedReason || debugTracker.fetchSupabaseEmployees.error || `Merged to ${debugTracker.fetchSupabaseEmployees.mergedCount} active`
+      },
+      {
+        Step: '4. googleSheetsFallback',
+        Executed: debugTracker.googleSheetsFallback.executed ? 'Yes' : 'No',
+        Status: debugTracker.googleSheetsFallback.skippedReason
+          ? '⏭️ Skipped'
+          : debugTracker.googleSheetsFallback.success
+          ? '✅ Success'
+          : '⚠️ No data',
+        RecordsLoaded: `${debugTracker.googleSheetsFallback.sheetCount} employees`,
+        Notes: debugTracker.googleSheetsFallback.skippedReason || 'Fallback executed'
+      }
+    ];
+
+    console.table(flowSummary);
+    console.log(
+      `%c[DB-Debugger] 🏁 Data Initialization Complete! Final Active Employees Count: ${debugTracker.finalStateCount}`,
+      'color: #16a34a; font-weight: bold; font-size: 12px;'
+    );
+    console.groupEnd();
 
     notifySyncStatus('saved');
   }, []);
@@ -306,7 +472,8 @@ export default function App() {
     const session = getSession();
     if (session && session.username) {
       setCurrentUser(session);
-      setCurrentScreen('app');
+      // Strictly enforce business process flow: Landing Page -> Login -> Dashboard
+      // Do NOT auto-redirect to dashboard ('app') on initial entrance.
     }
 
     loadDatabaseFromSource();

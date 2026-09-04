@@ -522,6 +522,22 @@ export function parseRowsToEmployees(
 }
 
 // -------------------------------------------------------------
+// Dummy / Placeholder Seed Detector
+// -------------------------------------------------------------
+export function isDummySeedEmployee(e: Employee): boolean {
+  if (!e) return false;
+  const id = (e.empId || '').trim().toUpperCase();
+  const name = (e.empName || '').trim().toLowerCase();
+  return (
+    id.startsWith('AJN-MJK') ||
+    id === 'EMP-1' ||
+    name === 'team hr' ||
+    name === 'ahmad fadhil kurniawan' ||
+    name === 'siti nurhaliza rahayu'
+  );
+}
+
+// -------------------------------------------------------------
 // Merge / Apply Data Strategy
 // -------------------------------------------------------------
 export function mergeEmployeesData(
@@ -529,7 +545,13 @@ export function mergeEmployeesData(
   incomingEmployees: Employee[],
   mode: 'merge' | 'replace' | 'append'
 ): { updatedEmployees: Employee[]; addedCount: number; updatedCount: number } {
-  if (mode === 'replace') {
+  // If incoming contains authentic data, purge any old dummy seed placeholder records
+  const hasRealIncoming = incomingEmployees.some((inc) => !isDummySeedEmployee(inc));
+  const effectiveCurrent = hasRealIncoming
+    ? currentEmployees.filter((cur) => !isDummySeedEmployee(cur))
+    : currentEmployees;
+
+  if (mode === 'replace' || (effectiveCurrent.length === 0 && incomingEmployees.length > 0)) {
     let rowIdx = 7;
     let noCounter = 1;
     const reindexed = incomingEmployees.map((e) => ({
@@ -545,12 +567,12 @@ export function mergeEmployeesData(
   let updatedCount = 0;
 
   if (mode === 'append') {
-    let nextRowIndex = currentEmployees.reduce((max, e) => Math.max(max, e.rowIndex || 0), 6) + 1;
-    let nextNo = currentEmployees.reduce((max, e) => Math.max(max, e.no || 0), 0) + 1;
+    let nextRowIndex = effectiveCurrent.reduce((max, e) => Math.max(max, e.rowIndex || 0), 6) + 1;
+    let nextNo = effectiveCurrent.reduce((max, e) => Math.max(max, e.no || 0), 0) + 1;
 
     const toAppend: Employee[] = [];
     incomingEmployees.forEach((inc) => {
-      const exists = currentEmployees.some(
+      const exists = effectiveCurrent.some(
         (e) =>
           e.empId.trim().toLowerCase() === inc.empId.trim().toLowerCase() &&
           Number(e.tahun) === Number(inc.tahun) &&
@@ -566,7 +588,7 @@ export function mergeEmployeesData(
       }
     });
 
-    const updatedEmployees = [...currentEmployees, ...toAppend];
+    const updatedEmployees = [...effectiveCurrent, ...toAppend];
     saveStoredEmployees(updatedEmployees);
     return { updatedEmployees, addedCount, updatedCount };
   }
@@ -576,14 +598,14 @@ export function mergeEmployeesData(
   const incomingMap = new Map<string, Employee>();
   incomingEmployees.forEach((inc) => incomingMap.set(mapKey(inc), inc));
 
-  let nextRowIndex = currentEmployees.reduce((max, e) => Math.max(max, e.rowIndex || 0), 6) + 1;
-  let nextNo = currentEmployees.reduce((max, e) => Math.max(max, e.no || 0), 0) + 1;
+  let nextRowIndex = effectiveCurrent.reduce((max, e) => Math.max(max, e.rowIndex || 0), 6) + 1;
+  let nextNo = effectiveCurrent.reduce((max, e) => Math.max(max, e.no || 0), 0) + 1;
 
   const merged: Employee[] = [];
   const processedKeys = new Set<string>();
 
   // 1. Process current employees (update if matched, keep if not)
-  currentEmployees.forEach((cur) => {
+  effectiveCurrent.forEach((cur) => {
     const key = mapKey(cur);
     if (incomingMap.has(key)) {
       const incoming = incomingMap.get(key)!;

@@ -19,8 +19,10 @@ import {
   parseCsvString,
   parseRowsToEmployees,
   mergeEmployeesData,
-  downloadSampleImportCsv
+  downloadSampleImportCsv,
+  isDummySeedEmployee
 } from '../utils/syncService';
+import { saveEmployeesToServer } from '../utils/systemDbService';
 import confetti from 'canvas-confetti';
 import { ConfirmationModal, ConfirmationVariant } from './ConfirmationModal';
 
@@ -166,12 +168,21 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
 
     if (res.success && res.data && res.data.length > 0) {
       setPreviewData(res.preview || null);
-      // Langsung sinkronkan dan terapkan ke sistem secara otomatis
-      const mergeResult = mergeEmployeesData(currentEmployees, res.data, mergeMode);
+      // Auto-replace if current employees contain old dummy seed records
+      const hasDummyCurrent = currentEmployees.some((e) => isDummySeedEmployee(e));
+      const effectiveMode = (mergeMode === 'merge' && hasDummyCurrent) ? 'replace' : mergeMode;
+      const mergeResult = mergeEmployeesData(currentEmployees, res.data, effectiveMode);
+      
       onApplySync(
         mergeResult.updatedEmployees,
         `Berhasil menarik ${res.data.length} data karyawan dari Supabase dan langsung dimuat ke database sistem!`
       );
+      
+      // Persist directly to central server disk database so all users and reloads share it
+      saveEmployeesToServer(mergeResult.updatedEmployees).catch((err) => {
+        console.warn('Could not persist pulled Supabase data to server DB disk:', err);
+      });
+
       setStatusAlert({
         type: 'success',
         message: `Berhasil menarik ${res.data.length} data karyawan dari Supabase dan LANGSUNG DIMUAT ke database sistem! (${mergeResult.addedCount} data baru, ${mergeResult.updatedCount} diperbarui)`
