@@ -53,14 +53,29 @@ async function safeParseJson<T = any>(res: Response, fallbackMessage: string): P
   }
 }
 
+// Internal flag to track whether dedicated Node.js /api server is available on this hosting platform (e.g. Cloud Run container vs static Vercel)
+let isServerApiSupported: boolean | null = null;
+
+export function checkServerApiSupported(): boolean | null {
+  return isServerApiSupported;
+}
+
 /**
  * Fetch all initial persistent system database data from server.
  * This guarantees that when a user opens Incognito mode, another tab, or another device,
  * the latest profiles, avatars, settings, and users are completely synced.
  */
 export async function fetchSystemInit(): Promise<SystemInitData | null> {
+  if (isServerApiSupported === false) {
+    return null;
+  }
   try {
     const res = await fetch('/api/system/init');
+    if (res.status === 404) {
+      isServerApiSupported = false;
+      return null;
+    }
+    isServerApiSupported = true;
     const { ok, data } = await safeParseJson<{ success: boolean; users?: UserAccount[]; config: SystemConfig; recentLogs?: ActivityLog[]; emailLogs?: EmailLog[] }>(
       res,
       'Gagal memuat data sistem'
@@ -75,7 +90,7 @@ export async function fetchSystemInit(): Promise<SystemInitData | null> {
     }
     return null;
   } catch (err) {
-    console.warn('Could not fetch system init data from backend:', err);
+    isServerApiSupported = false;
     return null;
   }
 }
@@ -623,6 +638,9 @@ export async function downloadFullSystemBackup(employees: any[]): Promise<boolea
  * Persist current employee dataset to Server Database (for cross-incognito recovery)
  */
 export async function saveEmployeesToServer(employees: any[]): Promise<{ success: boolean; message: string }> {
+  if (isServerApiSupported === false) {
+    return { success: false, message: 'Server database tidak aktif pada host ini.' };
+  }
   try {
     const res = await fetch('/api/employees', {
       method: 'PUT',
@@ -630,14 +648,17 @@ export async function saveEmployeesToServer(employees: any[]): Promise<{ success
       body: JSON.stringify({ employees })
     });
     if (res.status === 404) {
+      isServerApiSupported = false;
       return { success: false, message: 'Server database tidak aktif pada host ini.' };
     }
+    isServerApiSupported = true;
     const { ok, data } = await safeParseJson<{ success: boolean; message: string }>(res, 'Gagal menyimpan ke server.');
     if (ok && data) {
       return data;
     }
     return { success: false, message: 'Gagal menghubungi database karyawan server.' };
   } catch (err: any) {
+    isServerApiSupported = false;
     return { success: false, message: err?.message || 'Koneksi ke server gagal.' };
   }
 }
@@ -646,17 +667,23 @@ export async function saveEmployeesToServer(employees: any[]): Promise<{ success
  * Fetch persistent employee dataset from Server Database
  */
 export async function fetchEmployeesFromServer(): Promise<any[] | null> {
+  if (isServerApiSupported === false) {
+    return null;
+  }
   try {
     const res = await fetch('/api/employees');
     if (res.status === 404) {
+      isServerApiSupported = false;
       return null;
     }
+    isServerApiSupported = true;
     const { ok, data } = await safeParseJson<{ success: boolean; employees: any[] }>(res, 'Gagal memuat dari server.');
     if (ok && data?.success && Array.isArray(data.employees) && data.employees.length > 0) {
       return data.employees;
     }
     return null;
   } catch (err) {
+    isServerApiSupported = false;
     return null;
   }
 }

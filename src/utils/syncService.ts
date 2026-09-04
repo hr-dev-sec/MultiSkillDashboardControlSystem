@@ -1,6 +1,7 @@
 import { Employee, SkillMeta, UserAccount, UserScopeType } from '../types';
 import { INITIAL_SKILL_META, calculateEmployeeScore, BULAN_LABELS } from '../data/initialData';
 import { saveStoredEmployees, normalizeJobCategory } from './storage';
+import { checkServerApiSupported } from './systemDbService';
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
 export interface SupabaseConfig {
@@ -41,7 +42,7 @@ export interface SchemaFieldDoc {
 
 const SUPABASE_CONFIG_KEY = 'msm_supabase_config_v1';
 
-// Default Supabase Config (with automatic fallback to Vite Environment Variables)
+// Default Supabase Config (with automatic fallback to Vite & Vercel Environment Variables)
 export function getSupabaseConfig(): SupabaseConfig {
   let savedConfig: Partial<SupabaseConfig> = {};
   try {
@@ -49,10 +50,11 @@ export function getSupabaseConfig(): SupabaseConfig {
     if (raw) savedConfig = JSON.parse(raw);
   } catch (_) {}
 
-  // Fallback to VITE_ environment variables if available
-  const envUrl = String((import.meta as any).env?.VITE_SUPABASE_URL || '').trim();
-  const envKey = String((import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '').trim();
-  const envTable = String((import.meta as any).env?.VITE_SUPABASE_TABLE || 'employees_multi_skill').trim();
+  // Fallback to VITE_ and SUPABASE_ environment variables if available
+  const metaEnv = (import.meta as any).env || {};
+  const envUrl = String(metaEnv.VITE_SUPABASE_URL || metaEnv.SUPABASE_URL || '').trim();
+  const envKey = String(metaEnv.VITE_SUPABASE_ANON_KEY || metaEnv.SUPABASE_ANON_KEY || '').trim();
+  const envTable = String(metaEnv.VITE_SUPABASE_TABLE || metaEnv.SUPABASE_TABLE || 'employees_multi_skill').trim();
 
   const resolvedUrl = (savedConfig.url && savedConfig.url.trim()) || envUrl;
   const resolvedAnonKey = (savedConfig.anonKey && savedConfig.anonKey.trim()) || envKey;
@@ -72,19 +74,18 @@ export function saveSupabaseConfig(config: SupabaseConfig): void {
     cachedClientKey = '';
     localStorage.setItem(SUPABASE_CONFIG_KEY, JSON.stringify(config));
 
-    // Also persist Supabase configuration to centralized server database
-    // so any browser, incognito window, or new device automatically connects
-    fetch('/api/system/supabase-config', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        url: config.url,
-        anonKey: config.anonKey,
-        tableName: config.tableName || 'employees_multi_skill'
-      })
-    }).catch((err) => {
-      console.warn('Could not persist Supabase config to server:', err);
-    });
+    // Also persist Supabase configuration to centralized server database if server is available
+    if (checkServerApiSupported() !== false) {
+      fetch('/api/system/supabase-config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: config.url,
+          anonKey: config.anonKey,
+          tableName: config.tableName || 'employees_multi_skill'
+        })
+      }).catch(() => {});
+    }
   } catch (err) {
     console.error('Error saving Supabase config:', err);
   }
@@ -128,7 +129,7 @@ export function getSavedGoogleSheetUrl(): string {
     const saved = localStorage.getItem(GOOGLE_SHEET_URL_KEY);
     if (saved && saved.trim()) return saved.trim();
   } catch (_) {}
-  return DEFAULT_GOOGLE_SHEET_URL;
+  return '';
 }
 
 export function saveGoogleSheetUrl(url: string): void {

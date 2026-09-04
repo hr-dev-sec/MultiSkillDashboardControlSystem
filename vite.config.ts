@@ -6,6 +6,12 @@ import {defineConfig} from 'vite';
 export default defineConfig(() => {
   return {
     base: './',
+    envPrefix: ['VITE_', 'SUPABASE_'],
+    define: {
+      'process.env.SUPABASE_URL': JSON.stringify(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || ''),
+      'process.env.SUPABASE_ANON_KEY': JSON.stringify(process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || ''),
+      'process.env.SUPABASE_TABLE': JSON.stringify(process.env.SUPABASE_TABLE || process.env.VITE_SUPABASE_TABLE || 'employees_multi_skill'),
+    },
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {

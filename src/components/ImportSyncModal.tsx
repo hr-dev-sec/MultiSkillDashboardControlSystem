@@ -31,6 +31,8 @@ interface ImportSyncModalProps {
   onClose: () => void;
   currentEmployees: Employee[];
   onApplySync: (updatedEmployees: Employee[], message: string) => void;
+  defaultTab?: TabType;
+  onClearLocalCache?: () => void;
 }
 
 type TabType = 'googlesheet' | 'supabase' | 'file';
@@ -40,9 +42,11 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
   isOpen,
   onClose,
   currentEmployees,
-  onApplySync
+  onApplySync,
+  defaultTab = 'supabase',
+  onClearLocalCache
 }) => {
-  const [activeTab, setActiveTab] = useState<TabType>('googlesheet');
+  const [activeTab, setActiveTab] = useState<TabType>(defaultTab);
   
   // Google Sheets state
   const [sheetUrl, setSheetUrl] = useState<string>(() => getSavedGoogleSheetUrl());
@@ -99,12 +103,15 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
   // Reset or initialize when opened
   useEffect(() => {
     if (isOpen) {
+      if (defaultTab) {
+        setActiveTab(defaultTab);
+      }
       setSheetUrl(getSavedGoogleSheetUrl());
       setSupabaseConfig(getSupabaseConfig());
       setStatusAlert(null);
       setPreviewData(null);
     }
-  }, [isOpen]);
+  }, [isOpen, defaultTab]);
 
   if (!isOpen) return null;
 
@@ -165,6 +172,39 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
       type: 'success',
       message: 'Konfigurasi Supabase berhasil disimpan ke penyimpanan lokal & database server terpusat.'
     });
+  };
+
+  const handleFetchSupabaseCleanReplace = async () => {
+    setStatusAlert(null);
+    saveSupabaseConfig(supabaseConfig);
+
+    setIsFetchingSupabase(true);
+    const res = await fetchSupabaseEmployees(supabaseConfig, []);
+    setIsFetchingSupabase(false);
+
+    if (res.success && res.data && res.data.length > 0) {
+      setPreviewData(res.preview || null);
+      onApplySync(
+        res.data,
+        `Berhasil memuat ${res.data.length} data karyawan langsung dari Supabase sebagai satu-satunya sumber data!`
+      );
+      saveEmployeesToServer(res.data).catch(() => {});
+
+      setStatusAlert({
+        type: 'success',
+        message: `Berhasil memuat ${res.data.length} data karyawan dari Supabase! Seluruh data cache lokal lama telah digantikan secara bersih.`
+      });
+      try {
+        confetti({ particleCount: 70, spread: 80, origin: { y: 0.5 } });
+      } catch (_) {}
+    } else if (res.success && res.data && res.data.length === 0) {
+      setStatusAlert({
+        type: 'error',
+        message: `Koneksi Supabase berhasil, namun tabel "${supabaseConfig.tableName}" masih kosong (0 rekam data). Gunakan tombol Push Data jika ingin mengisi tabel dari data lokal.`
+      });
+    } else {
+      setStatusAlert({ type: 'error', message: res.message || 'Gagal memuat data dari Supabase.' });
+    }
   };
 
   const handleFetchSupabase = async () => {
@@ -868,74 +908,130 @@ SUPABASE_TABLE=${supabaseConfig.tableName || 'employees_multi_skill'}`}
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap items-center gap-2.5 pt-2">
-                    <button
-                      type="button"
-                      onClick={handleSaveOnlySupabaseConfig}
-                      disabled={!supabaseConfig.url}
-                      className="btn-ghost-navy px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                      title="Simpan konfigurasi ke LocalStorage dan database server"
-                    >
-                      <i className="fa-solid fa-floppy-disk text-xs text-blue-500"></i>
-                      <span>Simpan Konfigurasi</span>
-                    </button>
+                  <div className="space-y-3 pt-2">
+                    {/* Primary Action Buttons */}
+                    <div className="flex flex-wrap items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={handleFetchSupabaseCleanReplace}
+                        disabled={isFetchingSupabase || !supabaseConfig.url}
+                        className="btn-navy px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+                        title="Tarik seluruh data dari Supabase dan timpa cache lokal agar 100% identik dengan Supabase"
+                      >
+                        {isFetchingSupabase ? (
+                          <>
+                            <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                            <span>Menarik Data Supabase...</span>
+                          </>
+                        ) : (
+                          <>
+                            <i className="fa-solid fa-cloud-arrow-down text-cyan-300"></i>
+                            <span>Tarik &amp; Ganti Bersih (Clean Replace)</span>
+                          </>
+                        )}
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={handleTestSupabase}
-                      disabled={isTestingSupabase || !supabaseConfig.url}
-                      className="btn-ghost-navy px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                    >
-                      {isTestingSupabase ? (
-                        <>
-                          <span className="w-3.5 h-3.5 border-2 border-slate-400 border-t-slate-800 dark:border-t-white rounded-full animate-spin"></span>
-                          <span>Menguji...</span>
-                        </>
-                      ) : (
-                        <>
-                          <i className="fa-solid fa-plug text-xs"></i>
-                          <span>Uji Koneksi Supabase</span>
-                        </>
-                      )}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={handleFetchSupabase}
+                        disabled={isFetchingSupabase || !supabaseConfig.url}
+                        className="btn-ghost-navy px-3.5 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                        title="Tarik data Supabase dan gabungkan (merge) dengan data lokal"
+                      >
+                        <i className="fa-solid fa-code-merge text-xs text-blue-500"></i>
+                        <span>Tarik &amp; Gabungkan (Merge)</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={handleFetchSupabase}
-                      disabled={isFetchingSupabase || !supabaseConfig.url}
-                      className="btn-navy px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
-                    >
-                      {isFetchingSupabase ? (
-                        <>
-                          <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                          <span>Menarik Data Supabase...</span>
-                        </>
-                      ) : (
-                        <>
-                          <i className="fa-solid fa-cloud-arrow-down text-xs"></i>
-                          <span>Tarik Data dari Supabase (Pull)</span>
-                        </>
-                      )}
-                    </button>
+                      <button
+                        type="button"
+                        onClick={handlePushSupabase}
+                        disabled={isPushingSupabase || !supabaseConfig.url || !currentEmployees.length}
+                        className="btn-gold px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50 hover:opacity-95 transition"
+                      >
+                        {isPushingSupabase ? (
+                          <>
+                            <span className="w-3.5 h-3.5 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></span>
+                            <span>Mengirim ({syncProgress?.percent || 0}%)...</span>
+                          </>
+                        ) : (
+                          <>
+                            <i className="fa-solid fa-cloud-arrow-up text-xs"></i>
+                            <span>Push Data Lokal ➔ Supabase</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
 
-                    <button
-                      type="button"
-                      onClick={handlePushSupabase}
-                      disabled={isPushingSupabase || !supabaseConfig.url || !currentEmployees.length}
-                      className="btn-gold px-4 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50 hover:opacity-95 transition"
-                    >
-                      {isPushingSupabase ? (
-                        <>
-                          <span className="w-3.5 h-3.5 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></span>
-                          <span>Mengirim ({syncProgress?.percent || 0}%)...</span>
-                        </>
-                      ) : (
-                        <>
-                          <i className="fa-solid fa-cloud-arrow-up text-xs"></i>
-                          <span>Push Data Lokal ➔ Supabase</span>
-                        </>
+                    {/* Secondary Utility Controls */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200 dark:border-slate-800 text-xs">
+                      <button
+                        type="button"
+                        onClick={handleSaveOnlySupabaseConfig}
+                        disabled={!supabaseConfig.url}
+                        className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-[11px] flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition"
+                        title="Simpan konfigurasi ke LocalStorage dan database server"
+                      >
+                        <i className="fa-solid fa-floppy-disk text-blue-500"></i>
+                        <span>Simpan Konfigurasi</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={handleTestSupabase}
+                        disabled={isTestingSupabase || !supabaseConfig.url}
+                        className="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-[11px] flex items-center gap-1.5 cursor-pointer disabled:opacity-50 transition"
+                      >
+                        {isTestingSupabase ? (
+                          <>
+                            <span className="w-3 h-3 border-2 border-slate-400 border-t-slate-800 dark:border-t-white rounded-full animate-spin"></span>
+                            <span>Menguji...</span>
+                          </>
+                        ) : (
+                          <>
+                            <i className="fa-solid fa-plug text-emerald-500"></i>
+                            <span>Uji Koneksi Supabase</span>
+                          </>
+                        )}
+                      </button>
+
+                      {onClearLocalCache && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setConfirmModal({
+                              isOpen: true,
+                              title: 'Bersihkan Cache Lokal Browser',
+                              variant: 'danger',
+                              icon: 'fa-solid fa-trash-can',
+                              confirmLabel: 'Ya, Bersihkan Cache',
+                              description: (
+                                <div className="space-y-2">
+                                  <p>
+                                    Tindakan ini akan menghapus seluruh data rekam karyawan yang tersimpan di LocalStorage browser ini (<strong>{currentEmployees.length} karyawan</strong>).
+                                  </p>
+                                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                                    Ini sangat berguna jika cache lokal Anda sebelumnya terisi data dari Google Sheets atau data template lama. Setelah bersih, aplikasi akan memuat data murni langsung dari Supabase.
+                                  </p>
+                                </div>
+                              ),
+                              onConfirm: () => {
+                                setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+                                onClearLocalCache();
+                                setStatusAlert({
+                                  type: 'success',
+                                  message: 'Cache lokal berhasil dibersihkan! Silakan tekan tombol "Tarik & Ganti Bersih" untuk memuat data Supabase murni.'
+                                });
+                              }
+                            });
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-red-700 dark:text-red-300 font-semibold text-[11px] flex items-center gap-1.5 cursor-pointer transition ml-auto"
+                          title="Hapus cache data karyawan di browser ini"
+                        >
+                          <i className="fa-solid fa-trash-can text-red-500"></i>
+                          <span>Bersihkan Cache Lokal</span>
+                        </button>
                       )}
-                    </button>
+                    </div>
                   </div>
                 </div>
               )}

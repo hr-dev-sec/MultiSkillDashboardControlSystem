@@ -56,6 +56,18 @@ export default function App() {
 
   // Import / Sync / Export / Shortcuts Modal states
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importModalDefaultTab, setImportModalDefaultTab] = useState<'googlesheet' | 'supabase' | 'file'>('supabase');
+  const [supabaseLoadStatus, setSupabaseLoadStatus] = useState<{
+    status: 'idle' | 'loading' | 'connected' | 'error' | 'not_configured';
+    message: string;
+    count: number;
+    tableName: string;
+  }>({
+    status: 'idle',
+    message: '',
+    count: 0,
+    tableName: 'employees_multi_skill'
+  });
   const [isGlobalExcelModalOpen, setIsGlobalExcelModalOpen] = useState(false);
   const [isGlobalPdfModalOpen, setIsGlobalPdfModalOpen] = useState(false);
   const [isShortcutsModalOpen, setIsShortcutsModalOpen] = useState(false);
@@ -213,7 +225,7 @@ export default function App() {
       debugTracker.initialLocalCount = 0;
     }
 
-    console.groupCollapsed(
+    console.group(
       `%c[DB-Debugger] 🔄 Initiating loadDatabaseFromSource Sequence (Initial Local Count: ${debugTracker.initialLocalCount})`,
       'color: #0284c7; font-weight: bold; font-size: 12px;'
     );
@@ -306,6 +318,12 @@ export default function App() {
     console.log('[DB-Debugger] [Step 3] Evaluating Supabase configuration...');
     debugTracker.fetchSupabaseEmployees.executed = true;
     if (sbConfig.url && sbConfig.anonKey) {
+      setSupabaseLoadStatus({
+        status: 'loading',
+        message: `Menghubungkan ke Supabase (tabel: ${sbConfig.tableName || 'employees_multi_skill'})...`,
+        count: 0,
+        tableName: sbConfig.tableName || 'employees_multi_skill'
+      });
       try {
         console.log(`[DB-Debugger] [Step 3] Fetching from Supabase Cloud (Table: ${sbConfig.tableName || 'employees_multi_skill'})...`);
         const sbRes = await fetchSupabaseEmployees(sbConfig);
@@ -339,31 +357,62 @@ export default function App() {
             }));
 
             hasLoadedData = true;
+            setSupabaseLoadStatus({
+              status: 'connected',
+              message: `Tersambung ke Supabase (${cloudEmps.length} karyawan dimuat)`,
+              count: cloudEmps.length,
+              tableName: sbConfig.tableName || 'employees_multi_skill'
+            });
             console.log(
               `[DB-Debugger] [Step 3] ✅ fetchSupabaseEmployees SUCCESS - Authoritative Cloud Records: ${cloudEmps.length}`
             );
           } else {
+            setSupabaseLoadStatus({
+              status: 'connected',
+              message: `Tersambung ke Supabase, namun tabel "${sbConfig.tableName || 'employees_multi_skill'}" masih kosong (0 rekam data).`,
+              count: 0,
+              tableName: sbConfig.tableName || 'employees_multi_skill'
+            });
             console.log('[DB-Debugger] [Step 3] ℹ️ fetchSupabaseEmployees connected successfully but table contains 0 records.');
           }
         } else {
           debugTracker.fetchSupabaseEmployees.success = false;
           debugTracker.fetchSupabaseEmployees.error = sbRes.message || 'Unknown Supabase error';
+          setSupabaseLoadStatus({
+            status: 'error',
+            message: sbRes.message || 'Gagal memuat data dari Supabase.',
+            count: 0,
+            tableName: sbConfig.tableName || 'employees_multi_skill'
+          });
           console.warn('[DB-Debugger] [Step 3] ⚠️ fetchSupabaseEmployees returned unsuccessful status:', sbRes.message);
         }
       } catch (sbErr: any) {
         debugTracker.fetchSupabaseEmployees.error = sbErr?.message || String(sbErr);
+        setSupabaseLoadStatus({
+          status: 'error',
+          message: sbErr?.message || 'Terjadi kesalahan saat memuat Supabase.',
+          count: 0,
+          tableName: sbConfig.tableName || 'employees_multi_skill'
+        });
         console.error('[DB-Debugger] [Step 3] ❌ fetchSupabaseEmployees EXCEPTION:', sbErr);
       }
     } else {
       debugTracker.fetchSupabaseEmployees.skippedReason = 'Supabase credentials (url or anonKey) are not configured';
+      setSupabaseLoadStatus({
+        status: 'not_configured',
+        message: 'Kredensial URL / Anon Key Supabase belum terkonfigurasi di pengaturan.',
+        count: 0,
+        tableName: sbConfig.tableName || 'employees_multi_skill'
+      });
       console.log('[DB-Debugger] [Step 3] ⏭️ fetchSupabaseEmployees SKIPPED: URL or Anon Key not configured in system settings.');
     }
 
     // -------------------------------------------------------------------------
     // Phase 4: Google Sheets Master Fallback (Tertiary Source)
     // -------------------------------------------------------------------------
-    if (!hasLoadedData) {
-      console.log('[DB-Debugger] [Step 4] Primary sources yielded no data. Checking Google Sheets Fallback...');
+    const isSupabaseConfigured = Boolean(sbConfig.url && sbConfig.anonKey);
+    if (!hasLoadedData && !isSupabaseConfigured) {
+      console.log('[DB-Debugger] [Step 4] Primary sources yielded no data and Supabase is not configured. Checking Google Sheets Fallback...');
       debugTracker.googleSheetsFallback.executed = true;
       const defaultSheet = systemConfig?.googleSheetUrl || getSavedGoogleSheetUrl();
       if (defaultSheet) {
@@ -399,8 +448,10 @@ export default function App() {
         console.log('[DB-Debugger] [Step 4] ⏭️ Google Sheets Fallback SKIPPED: No sheet URL configured.');
       }
     } else {
-      debugTracker.googleSheetsFallback.skippedReason = 'Data already loaded from Server DB or Supabase';
-      console.log('[DB-Debugger] [Step 4] ⏭️ Google Sheets Fallback SKIPPED: Data already loaded successfully from primary sources.');
+      debugTracker.googleSheetsFallback.skippedReason = isSupabaseConfigured
+        ? 'Supabase is configured as authoritative cloud source (fallback skipped)'
+        : 'Data already loaded from Server DB';
+      console.log('[DB-Debugger] [Step 4] ⏭️ Google Sheets Fallback SKIPPED:', debugTracker.googleSheetsFallback.skippedReason);
     }
 
     // -------------------------------------------------------------------------
@@ -528,6 +579,23 @@ export default function App() {
     () => computeDashboardStats(filteredEmployees),
     [filteredEmployees]
   );
+
+  // Helper to open Supabase configuration tab in sync modal
+  const handleOpenSupabaseSettings = useCallback(() => {
+    setImportModalDefaultTab('supabase');
+    setIsImportModalOpen(true);
+  }, []);
+
+  // Helper to completely purge stale local browser cache and reload authoritative cloud data
+  const handleClearCacheAndReload = useCallback(() => {
+    try {
+      localStorage.removeItem('msm_employees_v1');
+    } catch (_) {}
+    setEmployees([]);
+    setToastNotification('Cache lokal dibersihkan. Memuat ulang data dari Supabase...');
+    setTimeout(() => setToastNotification(null), 4000);
+    loadDatabaseFromSource();
+  }, [loadDatabaseFromSource]);
 
   // Handle Login
   const handleLoginSuccess = (session: UserSession) => {
@@ -958,6 +1026,85 @@ export default function App() {
             {/* SCROLLABLE MAIN VIEW */}
             <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 relative bg-[#F8FAFC] dark:bg-[#070D19] transition-colors">
               <div className="max-w-7xl mx-auto">
+                {/* DATABASE SOURCE & SYNC STATUS BANNER */}
+                {supabaseLoadStatus.status === 'not_configured' && (
+                  <div className="mb-4 px-4 py-3 rounded-xl border border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/40 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200">
+                    <div className="flex items-center gap-2.5">
+                      <i className="fa-solid fa-triangle-exclamation text-amber-500 text-sm"></i>
+                      <div>
+                        <span className="font-bold">Koneksi Supabase Belum Terkonfigurasi: </span>
+                        <span>Aplikasi saat ini membaca data dari penyimpanan lokal/server. Agar data 100% sama dengan Supabase Anda, silakan hubungkan Supabase.</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleOpenSupabaseSettings}
+                        className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition cursor-pointer"
+                      >
+                        <i className="fa-solid fa-gear mr-1.5"></i> Hubungkan Supabase
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {supabaseLoadStatus.status === 'error' && (
+                  <div className="mb-4 px-4 py-3 rounded-xl border border-rose-300 dark:border-rose-800/60 bg-rose-50 dark:bg-rose-950/40 flex flex-wrap items-center justify-between gap-3 text-xs text-rose-900 dark:text-rose-200">
+                    <div className="flex items-center gap-2.5">
+                      <i className="fa-solid fa-circle-exclamation text-rose-500 text-sm"></i>
+                      <div>
+                        <span className="font-bold">Gagal Menarik Data Supabase: </span>
+                        <span>{supabaseLoadStatus.message}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={loadDatabaseFromSource}
+                        className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition cursor-pointer"
+                      >
+                        <i className="fa-solid fa-arrows-rotate mr-1.5"></i> Coba Lagi
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleOpenSupabaseSettings}
+                        className="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-bold text-xs transition cursor-pointer"
+                      >
+                        <i className="fa-solid fa-sliders mr-1.5"></i> Cek Pengaturan
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {supabaseLoadStatus.status === 'connected' && (
+                  <div className="mb-4 px-4 py-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/70 dark:bg-emerald-950/30 flex flex-wrap items-center justify-between gap-3 text-xs text-emerald-900 dark:text-emerald-200">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                      <div>
+                        <span className="font-bold">Database Aktif: </span>
+                        <span>Supabase Cloud ({supabaseLoadStatus.tableName}) &bull; <strong>{supabaseLoadStatus.count} karyawan</strong> termuat langsung</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <button
+                        type="button"
+                        onClick={handleClearCacheAndReload}
+                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 transition cursor-pointer font-semibold"
+                        title="Bersihkan cache lokal dan tarik ulang data dari Supabase"
+                      >
+                        <i className="fa-solid fa-arrows-rotate mr-1"></i> Refresh Supabase
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleOpenSupabaseSettings}
+                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 transition cursor-pointer font-semibold"
+                      >
+                        <i className="fa-solid fa-cloud mr-1"></i> Konfigurasi
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 <AnimatePresence mode="wait">
                   {activeTab === 'dashboard' && (
                     <motion.div
@@ -1046,6 +1193,8 @@ export default function App() {
             onClose={() => setIsImportModalOpen(false)}
             currentEmployees={employees}
             onApplySync={handleApplySync}
+            defaultTab={importModalDefaultTab}
+            onClearLocalCache={handleClearCacheAndReload}
           />
 
           {/* MODAL GLOBAL EXCEL EXPORT CONFIRMATION */}
