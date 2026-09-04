@@ -29,14 +29,20 @@ jobs:
         with:
           node-version: 20
 
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
       - name: Install Dependencies
-        run: npm install
+        run: npm install --legacy-peer-deps
 
       - name: Build Project
         run: npm run build
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
+      - name: Ensure SPA 404 Fallback
+        run: |
+          if [ -f "dist/index.html" ]; then
+            cp dist/index.html dist/404.html
+          fi
 
       - name: Upload Artifact
         uses: actions/upload-pages-artifact@v3
