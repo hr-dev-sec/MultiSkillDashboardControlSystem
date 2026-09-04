@@ -5,6 +5,7 @@ import {
   changePasswordAsync,
   updateUserProfileAsync,
   duplicatePeriod,
+  duplicatePeriodAndPersist,
   exportDatabaseCsv,
   buildReportPdfDoc,
   AJINOMOTO_LOGO_URL,
@@ -167,6 +168,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   const [dupTargetBulan, setDupTargetBulan] = useState<number>(nextTarget.bulan);
   const [dupAlert, setDupAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [isSubmittingDup, setIsSubmittingDup] = useState(false);
+  const [dupProgressMsg, setDupProgressMsg] = useState<string>('');
 
   // Custom Modal Confirmation State
   const [confirmModal, setConfirmModal] = useState<{
@@ -438,11 +440,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     });
   };
 
-  const executeDuplicate = () => {
+  const executeDuplicate = async () => {
     setIsSubmittingDup(true);
-    setTimeout(() => {
-      const res = duplicatePeriod(employees, dupSourceTahun, dupSourceBulan, dupTargetTahun, dupTargetBulan);
-      setIsSubmittingDup(false);
+    setDupAlert(null);
+    setDupProgressMsg('Menduplikasi matriks skill karyawan...');
+
+    try {
+      const res = await duplicatePeriodAndPersist(
+        employees,
+        dupSourceTahun,
+        dupSourceBulan,
+        dupTargetTahun,
+        dupTargetBulan,
+        (msg) => setDupProgressMsg(msg)
+      );
 
       if (res.success) {
         setDupAlert({ type: 'success', message: res.message });
@@ -453,7 +464,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       } else {
         setDupAlert({ type: 'error', message: res.message });
       }
-    }, 450);
+    } catch (err: any) {
+      setDupAlert({
+        type: 'error',
+        message: `Terjadi kendala saat duplikasi data: ${err?.message || 'Gagal menyimpan'}`
+      });
+    } finally {
+      setIsSubmittingDup(false);
+      setDupProgressMsg('');
+    }
   };
 
   // Handle Duplicate Period
@@ -1635,7 +1654,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               {isSubmittingDup ? (
                 <>
                   <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                  <span>Memproses Duplikasi...</span>
+                  <span>{dupProgressMsg || 'Memproses Duplikasi & Menyimpan...'}</span>
                 </>
               ) : (
                 <>

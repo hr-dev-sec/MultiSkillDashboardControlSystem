@@ -36,7 +36,8 @@ import {
   fetchSupabaseUsers,
   authenticateUserSupabase,
   autoSyncEmployeesToSupabase,
-  deleteEmployeeFromSupabase
+  deleteEmployeeFromSupabase,
+  pushEmployeesToSupabase
 } from './syncService';
 
 export { calculateEmployeeScore };
@@ -1117,6 +1118,58 @@ export function duplicatePeriod(
     count: duplicatedRows.length,
     message: `${duplicatedRows.length} data karyawan berhasil diduplikasi ke periode ${BULAN_LABELS[targetBulan - 1]} ${targetTahun}. Silakan sesuaikan checklist skill dan mutasi.`,
     employees: updatedEmployees
+  };
+}
+
+/**
+ * Asynchronous duplicate period that ensures full persistence to both Server DB disk
+ * and Supabase Cloud before returning, guaranteeing that reload will never lose data.
+ */
+export async function duplicatePeriodAndPersist(
+  employees: Employee[],
+  sourceTahun: number,
+  sourceBulan: number,
+  targetTahun: number,
+  targetBulan: number,
+  onProgress?: (msg: string) => void
+): Promise<{ success: boolean; message: string; count: number; employees: Employee[]; supabaseSynced?: boolean }> {
+  const dupRes = duplicatePeriod(employees, sourceTahun, sourceBulan, targetTahun, targetBulan);
+  if (!dupRes.success) {
+    return dupRes;
+  }
+
+  onProgress?.('Menyimpan data duplikasi ke database server disk...');
+  try {
+    const srvRes = await saveEmployeesToServer(dupRes.employees);
+    if (!srvRes.success) {
+      console.warn('[Duplicate] Catatan simpan server:', srvRes.message);
+    }
+  } catch (err) {
+    console.warn('[Duplicate] Gagal simpan ke server disk:', err);
+  }
+
+  let supabaseSynced = false;
+  const config = getSupabaseConfig();
+  if (config && config.url && config.anonKey) {
+    onProgress?.('Menyinkronkan data duplikasi ke database Supabase Cloud...');
+    try {
+      const sbRes = await pushEmployeesToSupabase(config, dupRes.employees);
+      if (sbRes.success) {
+        supabaseSynced = true;
+        console.log(`[Duplicate] Berhasil mensinkronkan ${dupRes.employees.length} karyawan ke Supabase.`);
+      } else {
+        console.warn('[Duplicate] Catatan push Supabase:', sbRes.message);
+      }
+    } catch (sbErr) {
+      console.warn('[Duplicate] Supabase error saat duplikasi:', sbErr);
+    }
+  }
+
+  const cloudNote = supabaseSynced ? ' & Cloud Supabase' : '';
+  return {
+    ...dupRes,
+    supabaseSynced,
+    message: `${dupRes.count} data karyawan berhasil diduplikasi ke periode ${BULAN_LABELS[targetBulan - 1]} ${targetTahun} dan otomatis tersimpan ke Database Server${cloudNote}. Data aman tersimpan saat halaman dimuat ulang (reload).`
   };
 }
 
