@@ -54,9 +54,14 @@ export const SharedFilterBar: React.FC<SharedFilterBarProps> = ({
 
     if (key === 'bulan') {
       let bulanNums: number[] = [];
-      if (filters.tahun.length) {
+      const tahunArr = Array.isArray(filters.tahun)
+        ? filters.tahun
+        : filters.tahun !== undefined && filters.tahun !== null
+        ? [String(filters.tahun)]
+        : [];
+      if (tahunArr.length) {
         const set: Record<number, boolean> = {};
-        filters.tahun.forEach((t) => {
+        tahunArr.forEach((t) => {
           (periods.bulanByTahun[String(t)] || []).forEach((b) => {
             set[b] = true;
           });
@@ -82,7 +87,8 @@ export const SharedFilterBar: React.FC<SharedFilterBarProps> = ({
   };
 
   const handleToggleOption = (key: keyof AppFiltersState, value: string) => {
-    const current = filters[key];
+    const raw = filters[key];
+    const current = Array.isArray(raw) ? raw : raw !== undefined && raw !== null ? [String(raw)] : [];
     const next = current.includes(value) ? current.filter((v) => v !== value) : [...current, value];
     onFilterChange({ ...filters, [key]: next });
   };
@@ -97,7 +103,8 @@ export const SharedFilterBar: React.FC<SharedFilterBarProps> = ({
   };
 
   const getButtonLabel = (key: keyof AppFiltersState, allLabel: string): string => {
-    const selected = filters[key];
+    const raw = filters[key];
+    const selected = Array.isArray(raw) ? raw : raw !== undefined && raw !== null ? [String(raw)] : [];
     if (!selected.length) return allLabel;
     if (selected.length === 1) {
       if (key === 'bulan') {

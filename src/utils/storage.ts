@@ -719,12 +719,27 @@ export function getDefaultFilterPeriod(employees: Employee[]): { tahun: string[]
 }
 
 export function getFilteredEmployees(employees: Employee[], filters: AppFiltersState): Employee[] {
+  if (!Array.isArray(employees)) return [];
+  const safeTahun = Array.isArray(filters?.tahun)
+    ? filters.tahun.map(String)
+    : filters?.tahun !== undefined && filters?.tahun !== null
+    ? [String(filters.tahun)]
+    : [];
+  const safeBulan = Array.isArray(filters?.bulan)
+    ? filters.bulan.map(String)
+    : filters?.bulan !== undefined && filters?.bulan !== null
+    ? [String(filters.bulan)]
+    : [];
+  const safeDivisi = Array.isArray(filters?.divisi) ? filters.divisi : [];
+  const safeDept = Array.isArray(filters?.department) ? filters.department : [];
+  const safeJabatan = Array.isArray(filters?.jabatan) ? filters.jabatan : [];
+
   return employees.filter((e) => {
-    if (filters.tahun.length && !filters.tahun.includes(String(e.tahun || ''))) return false;
-    if (filters.bulan.length && !filters.bulan.includes(String(e.bulan || ''))) return false;
-    if (filters.divisi.length && !filters.divisi.includes(e.divisi)) return false;
-    if (filters.department.length && !filters.department.includes(e.department)) return false;
-    if (filters.jabatan.length && !filters.jabatan.includes(e.jabatan)) return false;
+    if (safeTahun.length && !safeTahun.includes(String(e.tahun || ''))) return false;
+    if (safeBulan.length && !safeBulan.includes(String(e.bulan || ''))) return false;
+    if (safeDivisi.length && !safeDivisi.includes(e.divisi)) return false;
+    if (safeDept.length && !safeDept.includes(e.department)) return false;
+    if (safeJabatan.length && !safeJabatan.includes(e.jabatan)) return false;
     return true;
   });
 }

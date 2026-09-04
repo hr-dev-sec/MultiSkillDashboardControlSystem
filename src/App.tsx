@@ -817,8 +817,8 @@ export default function App() {
                         onUpdatePeriodFilter={(targetTahun, targetBulan) => {
                           setFilters((prev) => ({
                             ...prev,
-                            tahun: Number(targetTahun),
-                            bulan: Number(targetBulan)
+                            tahun: [String(targetTahun)],
+                            bulan: [String(targetBulan)]
                           }));
                         }}
                         onOpenImportModal={() => setIsImportModalOpen(true)}

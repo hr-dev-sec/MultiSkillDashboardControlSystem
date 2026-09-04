@@ -967,6 +967,12 @@ export async function fetchSupabaseEmployees(
       const customStandard = r.standard !== undefined && r.standard !== null && !isNaN(Number(r.standard)) ? Number(r.standard) : null;
       const calc = calculateEmployeeScore(skills, jabatan, customStandard);
 
+      const resolvedTotalScore = (calc.totalScore > 0 || hasParsedSkills) ? calc.totalScore : Number(r.total_score ?? r.totalScore ?? 0);
+      const resolvedResult = (calc.totalScore > 0 || hasParsedSkills) ? calc.result : (r.result || (resolvedTotalScore >= (customStandard || 4) ? 'MS' : 'US'));
+      const resolvedStandard = (calc.standard > 0 || hasParsedSkills) ? calc.standard : Number(r.standard ?? 4);
+      const resolvedGap = (calc.totalScore > 0 || hasParsedSkills) ? calc.gap : Number(r.gap ?? (resolvedTotalScore - resolvedStandard));
+      const resolvedJobCategory = calc.jobCategory || r.job_category || r.jobCategory || 'LL / Foreman';
+
       parsed.push({
         rowIndex: ++maxRowIndex,
         no: ++maxNo,
@@ -983,11 +989,11 @@ export async function fetchSupabaseEmployees(
         pic,
         tahun,
         bulan,
-        jobCategory: calc.jobCategory,
-        totalScore: calc.totalScore,
-        standard: calc.standard,
-        result: calc.result,
-        gap: calc.gap,
+        jobCategory: resolvedJobCategory,
+        totalScore: resolvedTotalScore,
+        standard: resolvedStandard,
+        result: resolvedResult,
+        gap: resolvedGap,
         skills
       });
     });
