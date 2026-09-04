@@ -34,7 +34,9 @@ import {
 import {
   getSupabaseConfig,
   fetchSupabaseUsers,
-  authenticateUserSupabase
+  authenticateUserSupabase,
+  autoSyncEmployeesToSupabase,
+  deleteEmployeeFromSupabase
 } from './syncService';
 
 export { calculateEmployeeScore };
@@ -98,11 +100,18 @@ export function getStoredEmployees(): Employee[] {
   }
 }
 
-export function saveStoredEmployees(employees: Employee[]): void {
+export function saveStoredEmployees(
+  employees: Employee[],
+  options?: { immediateCloudSync?: boolean }
+): void {
   try {
     localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(employees));
-    // Asynchronously synchronize employees to persistent server disk
-    saveEmployeesToServer(employees).catch(() => {});
+    // Asynchronously synchronize employees to persistent server disk (server/data/employees_db.json)
+    saveEmployeesToServer(employees).catch((err) => {
+      console.warn('[Server DB] Simpan ke server disk:', err);
+    });
+    // Automatically synchronize to Supabase cloud in the background without requiring manual push
+    autoSyncEmployeesToSupabase(employees, options?.immediateCloudSync);
   } catch (err) {
     console.error('Error saving employees:', err);
   }
@@ -1029,7 +1038,20 @@ export function updateEmployeeProfile(
 
   const updatedEmployees = [...employees];
   updatedEmployees[index] = updatedEmployee;
-  saveStoredEmployees(updatedEmployees);
+
+  // If primary key components (empId, tahun, bulan) changed, remove the old record from Supabase
+  const keyChanged =
+    currentEmp.empId.trim().toLowerCase() !== newEmpId.trim().toLowerCase() ||
+    Number(currentEmp.tahun) !== Number(newTahun) ||
+    Number(currentEmp.bulan) !== Number(newBulan);
+  if (keyChanged) {
+    const config = getSupabaseConfig();
+    if (config && config.url && config.anonKey) {
+      deleteEmployeeFromSupabase(config, currentEmp.empId, currentEmp.tahun, currentEmp.bulan).catch(() => {});
+    }
+  }
+
+  saveStoredEmployees(updatedEmployees, { immediateCloudSync: true });
 
   const stdMsg = updatedEmployee.standard !== null ? ` Standar otomatis disesuaikan ke: ≥ ${updatedEmployee.standard}.` : '';
 
@@ -1042,8 +1064,19 @@ export function updateEmployeeProfile(
 }
 
 export function deleteEmployee(employees: Employee[], rowIndex: number): { success: boolean; message: string; employees: Employee[] } {
+  const targetEmp = employees.find((e) => e.rowIndex === rowIndex);
   const updatedEmployees = employees.filter((e) => e.rowIndex !== rowIndex);
-  saveStoredEmployees(updatedEmployees);
+  saveStoredEmployees(updatedEmployees, { immediateCloudSync: true });
+
+  if (targetEmp) {
+    const config = getSupabaseConfig();
+    if (config && config.url && config.anonKey) {
+      deleteEmployeeFromSupabase(config, targetEmp.empId, targetEmp.tahun, targetEmp.bulan).catch((err) => {
+        console.warn('[Delete Employee] Supabase delete note:', err);
+      });
+    }
+  }
+
   return { success: true, message: 'Data karyawan berhasil dihapus.', employees: updatedEmployees };
 }
 
@@ -1077,7 +1110,7 @@ export function duplicatePeriod(
   });
 
   const updatedEmployees = [...employees, ...duplicatedRows];
-  saveStoredEmployees(updatedEmployees);
+  saveStoredEmployees(updatedEmployees, { immediateCloudSync: true });
 
   return {
     success: true,

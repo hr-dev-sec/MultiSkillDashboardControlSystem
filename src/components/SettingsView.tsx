@@ -1217,15 +1217,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </div>
         </div>
 
-        {/* DARK MODE & TIPS */}
+        {/* PREFERENSI TEMA & KEAMANAN AKUN */}
         <div className="flex flex-col gap-6 h-full">
+          {/* TEMA TAMPILAN DARK MODE */}
           <div className="card-elegant p-6 flex items-center justify-between">
             <div className="pr-4">
-              <p className="section-title text-sm sm:text-base mb-1 flex items-center gap-2">
-                <i className="fa-solid fa-moon text-amber-500"></i> Tampilan Dark Mode
-              </p>
-              <p className="text-xs text-slate-400">
-                Ubah tema aplikasi menjadi gelap agar lebih nyaman di mata saat bekerja malam hari.
+              <div className="flex items-center gap-2 mb-1">
+                <span
+                  className="chart-icon"
+                  style={{ width: '1.9rem', height: '1.9rem', background: 'linear-gradient(135deg, #f59e0b, #d97706)' }}
+                >
+                  <i className={`fa-solid ${isDarkMode ? 'fa-moon text-amber-100' : 'fa-sun text-white'} text-[11px]`}></i>
+                </span>
+                <p className="section-title text-sm sm:text-base font-bold">
+                  Preferensi Tema Tampilan
+                </p>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                Mode saat ini: <strong className="text-slate-800 dark:text-slate-200">{isDarkMode ? 'Gelap (Dark Mode)' : 'Terang (Light Mode)'}</strong>. Beralih tema agar lebih nyaman di mata saat evaluasi data.
               </p>
             </div>
 
@@ -1234,29 +1243,59 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               onClick={onToggleDarkMode}
               className={`toggle-switch shrink-0 ${isDarkMode ? 'on' : ''}`}
               aria-label="Toggle dark mode"
+              title={`Beralih ke ${isDarkMode ? 'Light Mode' : 'Dark Mode'}`}
             >
               <span className="toggle-knob"></span>
             </button>
           </div>
 
-          <div className="card-elegant p-6 flex-1 flex flex-col justify-center">
-            <p className="section-title text-sm mb-3 flex items-center gap-2">
-              <i className="fa-solid fa-circle-info text-amber-600"></i> Tips Pengelolaan Periode Bulanan
-            </p>
-            <ul className="text-xs text-slate-600 space-y-2.5 leading-relaxed">
-              <li className="flex items-start gap-2">
-                <i className="fa-solid fa-circle text-[5px] mt-1.5 shrink-0 text-amber-600"></i>
-                Gunakan <b>"Duplikasi Data ke Periode Baru"</b> setiap awal bulan, lalu tinggal sesuaikan checklist skill per karyawan.
-              </li>
-              <li className="flex items-start gap-2">
-                <i className="fa-solid fa-circle text-[5px] mt-1.5 shrink-0 text-amber-600"></i>
-                Karyawan pensiun atau mutasi cukup dihapus pada periode berjalan lewat tab <b>Employee Multi-Skill</b>.
-              </li>
-              <li className="flex items-start gap-2">
-                <i className="fa-solid fa-circle text-[5px] mt-1.5 shrink-0 text-amber-600"></i>
-                Karyawan baru cukup ditambahkan lewat tombol <b>"Tambah Karyawan"</b> pada tab yang sama.
-              </li>
-            </ul>
+          {/* KEBIJAKAN & KEAMANAN AKUN */}
+          <div className="card-elegant p-6 flex-1 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <p className="section-title text-sm font-bold flex items-center gap-2">
+                  <span
+                    className="chart-icon"
+                    style={{ width: '1.9rem', height: '1.9rem', background: 'linear-gradient(135deg, var(--navy), var(--navy-2))' }}
+                  >
+                    <i className="fa-solid fa-shield-halved text-[11px] text-white"></i>
+                  </span>
+                  <span>Keamanan Akun &amp; Kredensial</span>
+                </p>
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-[10.5px] font-bold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Sesi Terproteksi</span>
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mb-3.5 leading-relaxed">
+                Pedoman perlindungan data dan kepatuhan keamanan akun Multi-Skill:
+              </p>
+
+              <ul className="text-xs text-slate-600 dark:text-slate-300 space-y-2.5 leading-relaxed">
+                <li className="flex items-start gap-2.5">
+                  <i className="fa-solid fa-circle-check text-indigo-500 text-[11px] mt-0.5 shrink-0"></i>
+                  <span><b>Kombinasi Sandi Kuat:</b> Gunakan minimal 6 karakter kombinasi huruf, angka, atau simbol unik guna mencegah akses tanpa izin.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <i className="fa-solid fa-circle-check text-indigo-500 text-[11px] mt-0.5 shrink-0"></i>
+                  <span><b>Pencatatan Audit Trail:</b> Setiap pergantian kata sandi dan manipulasi data tersimpan secara atomik di Log Audit Aktivitas sistem.</span>
+                </li>
+                <li className="flex items-start gap-2.5">
+                  <i className="fa-solid fa-circle-check text-indigo-500 text-[11px] mt-0.5 shrink-0"></i>
+                  <span><b>Keamanan Perangkat Bersama:</b> Selalu logout atau kunci layar setelah selesai bertugas pada komputer pabrik atau ruang kontrol bersama.</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between text-[11px] text-slate-400">
+              <span className="flex items-center gap-1.5">
+                <i className="fa-solid fa-user-shield text-indigo-400 text-[11px]"></i>
+                <span>Masuk sebagai: <strong className="text-slate-700 dark:text-slate-300">@{currentUser.username}</strong></span>
+              </span>
+              <span className="font-semibold text-slate-600 dark:text-slate-300">
+                {currentUser.role || 'HR Admin'}
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -1591,7 +1630,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
               type="button"
               onClick={handleDuplicateSubmit}
               disabled={isSubmittingDup}
-              className="btn-navy px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-60"
+              className="btn-navy px-5 py-2.5 rounded-xl text-xs sm:text-sm font-semibold flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-60 mb-5"
             >
               {isSubmittingDup ? (
                 <>
@@ -1605,6 +1644,32 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
                 </>
               )}
             </button>
+
+            {/* PANDUAN PENGELOLAAN PERIODE BULANAN */}
+            <div className="p-4 rounded-xl bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/60">
+              <p className="text-xs font-bold text-amber-900 dark:text-amber-200 flex items-center gap-2 mb-2.5">
+                <i className="fa-solid fa-lightbulb text-amber-500"></i>
+                <span>Panduan &amp; Tips Pengelolaan Periode Bulanan</span>
+              </p>
+              <ul className="text-xs text-slate-600 dark:text-slate-300 space-y-2 leading-relaxed">
+                <li className="flex items-start gap-2">
+                  <i className="fa-solid fa-circle-check text-[11px] mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"></i>
+                  <span><b>Duplikasi di Awal Periode:</b> Gunakan tombol di atas setiap pergantian bulan untuk menyalin seluruh data kompetensi karyawan dari periode sebelumnya tanpa perlu entri ulang.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <i className="fa-solid fa-circle-check text-[11px] mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"></i>
+                  <span><b>Penyesuaian Checklist Skill:</b> Setelah proses duplikasi berhasil, Anda cukup memperbarui checklist skill karyawan yang mengalami peningkatan kompetensi pada periode baru.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <i className="fa-solid fa-circle-check text-[11px] mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"></i>
+                  <span><b>Karyawan Pensiun / Mutasi:</b> Cukup dihapus pada periode berjalan lewat tab <b>Employee Multi-Skill</b> tanpa merusak riwayat arsip pada periode lampau.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <i className="fa-solid fa-circle-check text-[11px] mt-0.5 shrink-0 text-amber-600 dark:text-amber-400"></i>
+                  <span><b>Karyawan Baru:</b> Cukup ditambahkan langsung pada periode aktif melalui tombol <b>"Tambah Karyawan"</b> pada tab yang sama.</span>
+                </li>
+              </ul>
+            </div>
           </div>
         </div>
 

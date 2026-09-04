@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserSession } from '../types';
+import { onDatabaseSyncStatusChange, DatabaseSyncStatus } from '../utils/syncService';
 
 interface HeaderProps {
   activeTab: 'dashboard' | 'employee' | 'settings';
@@ -25,6 +26,25 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenShortcutsModal
 }) => {
   const [timeStr, setTimeStr] = useState<string>('');
+  const [dbSyncStatus, setDbSyncStatus] = useState<DatabaseSyncStatus>('saved');
+  const [lastSavedTime, setLastSavedTime] = useState<string>('');
+
+  // Live Database Sync Listener
+  useEffect(() => {
+    const unsub = onDatabaseSyncStatusChange((status, lastSavedAt) => {
+      setDbSyncStatus(status);
+      if (lastSavedAt) {
+        setLastSavedTime(
+          lastSavedAt.toLocaleTimeString('id-ID', {
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit'
+          })
+        );
+      }
+    });
+    return unsub;
+  }, []);
 
   // Live Factory Clock in WIB
   useEffect(() => {
@@ -117,8 +137,35 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Right: Clock, Theme Toggle & User Info */}
+      {/* Right: Clock, Auto-Save Status, Theme Toggle & User Info */}
       <div className="flex items-center gap-2.5 sm:gap-3.5 shrink-0">
+        {/* Live Database Auto-Save Status Indicator */}
+        <div
+          className="hidden sm:flex items-center gap-2 px-2.5 py-1.5 rounded-xl border text-xs transition-all shadow-2xs bg-slate-100/80 dark:bg-slate-800/80 border-slate-200/80 dark:border-slate-700/80"
+          title={
+            dbSyncStatus === 'saving'
+              ? 'Sedang menyimpan perubahan ke database...'
+              : `Semua perubahan data otomatis tersimpan ke database ${lastSavedTime ? `(terakhir pukul ${lastSavedTime} WIB)` : ''}. Tidak perlu push manual.`
+          }
+        >
+          {dbSyncStatus === 'saving' ? (
+            <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400 font-bold">
+              <i className="fa-solid fa-circle-notch animate-spin text-[11px]"></i>
+              <span className="text-[11px]">Menyimpan ke DB...</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400 font-bold">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <i className="fa-solid fa-cloud-arrow-up text-[11px]"></i>
+              <span className="text-[11px] hidden lg:inline">Auto-Saved to DB</span>
+              <span className="text-[11px] lg:hidden">Saved</span>
+            </div>
+          )}
+        </div>
+
         {/* Factory Live Clock */}
         <div className="hidden xl:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/80 text-xs font-mono text-slate-700 dark:text-slate-300 shadow-2xs">
           <i className="fa-regular fa-clock text-amber-600 dark:text-amber-400 text-xs"></i>

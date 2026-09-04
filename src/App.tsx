@@ -16,7 +16,13 @@ import {
 } from './utils/storage';
 import { INITIAL_SKILL_META } from './data/initialData';
 import { Employee, UserSession, AppFiltersState } from './types';
-import { getSupabaseConfig, fetchSupabaseEmployees, fetchGoogleSheetData, getSavedGoogleSheetUrl } from './utils/syncService';
+import {
+  getSupabaseConfig,
+  fetchSupabaseEmployees,
+  fetchGoogleSheetData,
+  getSavedGoogleSheetUrl,
+  deleteEmployeeFromSupabase
+} from './utils/syncService';
 import { fetchEmployeesFromServer } from './utils/systemDbService';
 
 // Components
@@ -168,6 +174,7 @@ export default function App() {
     // Auto-fetch data from Server DB / Supabase Cloud / Google Sheets on boot across all browsers
     const autoSyncFromCloud = async () => {
       let hasLoadedFromCloud = false;
+      let serverEmpsCount = 0;
 
       // 1. First sync persistent config and profiles from Server DB
       try {
@@ -182,6 +189,7 @@ export default function App() {
         // Also check if Server has persistent real employee records
         const serverEmps = await fetchEmployeesFromServer();
         if (serverEmps && Array.isArray(serverEmps) && serverEmps.length > 0) {
+          serverEmpsCount = serverEmps.length;
           setEmployees(serverEmps);
           saveStoredEmployees(serverEmps);
           const defaultPeriod = getDefaultFilterPeriod(serverEmps);
@@ -197,13 +205,14 @@ export default function App() {
         console.warn('System init backend note:', e);
       }
 
-      // 2. Fetch employee data from Supabase Cloud automatically
-      if (!hasLoadedFromCloud) {
-        const config = getSupabaseConfig();
-        if (config.url && config.anonKey) {
-          try {
-            const res = await fetchSupabaseEmployees(config);
-            if (res.success && res.data && res.data.length > 0) {
+      // 2. Fetch employee data from Supabase Cloud automatically if configured
+      const config = getSupabaseConfig();
+      if (config.url && config.anonKey) {
+        try {
+          const res = await fetchSupabaseEmployees(config);
+          if (res.success && res.data && res.data.length > 0) {
+            // If Supabase has more complete/recent data, or server hasn't loaded real data
+            if (!hasLoadedFromCloud || res.data.length >= serverEmpsCount) {
               setEmployees(res.data);
               saveStoredEmployees(res.data);
               
@@ -218,9 +227,9 @@ export default function App() {
               hasLoadedFromCloud = true;
               console.log(`[Cloud Sync] Otomatis memuat ${res.data.length} karyawan dari Supabase Cloud (Semua Halaman).`);
             }
-          } catch (err) {
-            console.warn('[Cloud Sync] Gagal sinkronisasi Supabase:', err);
           }
+        } catch (err) {
+          console.warn('[Cloud Sync] Gagal sinkronisasi Supabase:', err);
         }
       }
 
@@ -474,11 +483,20 @@ export default function App() {
         onConfirm: () => {
           setConfirmModalConfig((prev) => ({ ...prev, isOpen: false }));
           setEmployees((prev) => {
+            const targetEmp = prev.find((e) => e.rowIndex === rowIndex);
             const filtered = prev.filter((e) => e.rowIndex !== rowIndex);
-            saveStoredEmployees(filtered);
+            saveStoredEmployees(filtered, { immediateCloudSync: true });
+            if (targetEmp) {
+              const config = getSupabaseConfig();
+              if (config && config.url && config.anonKey) {
+                deleteEmployeeFromSupabase(config, targetEmp.empId, targetEmp.tahun, targetEmp.bulan).catch((err) => {
+                  console.warn('[Delete Employee] Supabase delete note:', err);
+                });
+              }
+            }
             return filtered;
           });
-          setToastNotification(`Data karyawan "${empName}" berhasil dihapus.`);
+          setToastNotification(`Data karyawan "${empName}" berhasil dihapus dari database.`);
           setTimeout(() => setToastNotification(null), 4000);
         }
       });
@@ -783,7 +801,10 @@ export default function App() {
                         periods={periods}
                         isDarkMode={isDarkMode}
                         onToggleDarkMode={handleToggleDarkMode}
-                        onRefreshData={(newEmployees) => setEmployees(newEmployees)}
+                        onRefreshData={(newEmployees) => {
+                          setEmployees(newEmployees);
+                          saveStoredEmployees(newEmployees, { immediateCloudSync: true });
+                        }}
                         onOpenImportModal={() => setIsImportModalOpen(true)}
                         onUpdateCurrentUser={(updatedUser) => {
                           saveSession(updatedUser);

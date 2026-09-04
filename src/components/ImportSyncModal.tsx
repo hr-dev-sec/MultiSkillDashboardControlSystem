@@ -777,6 +777,25 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
                     </div>
                   </div>
 
+                  {/* AUTO-SYNC DATABASE NOTIFICATION BANNER */}
+                  <div className="p-3.5 bg-emerald-500/10 dark:bg-emerald-950/40 border border-emerald-500/20 dark:border-emerald-800/60 rounded-2xl flex items-start gap-3 text-xs text-emerald-900 dark:text-emerald-300">
+                    <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                      <i className="fa-solid fa-cloud-arrow-up text-sm"></i>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="font-bold text-xs flex items-center gap-1.5">
+                        <span>Penyimpanan Otomatis Aktif (Auto-Sync Database)</span>
+                        <span className="px-1.5 py-0.2 text-[9px] font-extrabold uppercase bg-emerald-600 text-white rounded-md">Live Realtime</span>
+                      </p>
+                      <p className="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed">
+                        Setiap perubahan data (checklist matriks skill, penambahan karyawan, pengeditan profil, duplikasi periode, atau penghapusan data) <strong>otomatis langsung tersimpan ke database server dan Supabase</strong> tanpa mengharuskan Anda menekan tombol push.
+                      </p>
+                      <p className="text-[10px] text-emerald-700/90 dark:text-emerald-400/90">
+                        *Tombol <strong>Push Data Lokal ➔ Supabase</strong> di bawah ini tetap disediakan bila Anda ingin memicu pengunggahan massal secara manual sewaktu-waktu.
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="flex flex-wrap gap-2.5 pt-2">
                     <button
                       type="button"

@@ -1139,6 +1139,138 @@ export async function pushEmployeesToSupabase(
   }
 }
 
+/**
+ * Delete a single employee record from Supabase table
+ */
+export async function deleteEmployeeFromSupabase(
+  config: SupabaseConfig,
+  empId: string,
+  tahun: number,
+  bulan: number
+): Promise<{ success: boolean; message: string }> {
+  if (!config.url || !config.anonKey) {
+    return { success: false, message: 'Supabase belum dikonfigurasi.' };
+  }
+  const client = getSupabaseClient(config);
+  if (!client) {
+    return { success: false, message: 'Klien Supabase tidak tersedia.' };
+  }
+  try {
+    const tableName = config.tableName.trim() || 'employees_multi_skill';
+    const { error } = await client
+      .from(tableName)
+      .delete()
+      .match({
+        emp_id: empId.trim(),
+        tahun: Number(tahun),
+        bulan: Number(bulan)
+      });
+    if (error) {
+      console.warn('[Supabase Delete] Note on delete:', error.message);
+      return { success: false, message: `Gagal menghapus karyawan dari Supabase: ${error.message}` };
+    }
+    return { success: true, message: `Data karyawan NIK ${empId} periode ${tahun}/${bulan} berhasil dihapus dari Supabase.` };
+  } catch (err: any) {
+    console.warn('[Supabase Delete] Error deleting from Supabase:', err);
+    return { success: false, message: err?.message || 'Gagal menghapus dari Supabase' };
+  }
+}
+
+// -------------------------------------------------------------
+// Automatic Real-Time Cloud Sync State & Engine
+// -------------------------------------------------------------
+export type DatabaseSyncStatus = 'idle' | 'saving' | 'saved' | 'error';
+
+let autoSyncDebounceTimer: any = null;
+let lastSyncTimestamp: number = 0;
+let isAutoSyncing: boolean = false;
+let currentSyncStatus: DatabaseSyncStatus = 'saved';
+const syncStatusListeners: Set<(status: DatabaseSyncStatus, lastSavedAt?: Date) => void> = new Set();
+
+export function getDatabaseSyncStatus(): { status: DatabaseSyncStatus; lastSavedAt?: Date } {
+  return {
+    status: currentSyncStatus,
+    lastSavedAt: lastSyncTimestamp ? new Date(lastSyncTimestamp) : undefined
+  };
+}
+
+export function onDatabaseSyncStatusChange(
+  callback: (status: DatabaseSyncStatus, lastSavedAt?: Date) => void
+): () => void {
+  syncStatusListeners.add(callback);
+  callback(currentSyncStatus, lastSyncTimestamp ? new Date(lastSyncTimestamp) : undefined);
+  return () => {
+    syncStatusListeners.delete(callback);
+  };
+}
+
+function notifySyncStatus(status: DatabaseSyncStatus) {
+  currentSyncStatus = status;
+  const date = lastSyncTimestamp ? new Date(lastSyncTimestamp) : new Date();
+  syncStatusListeners.forEach((cb) => {
+    try {
+      cb(status, date);
+    } catch (_) {}
+  });
+}
+
+/**
+ * Automatically syncs employee records to Supabase in the background
+ * Debounced to batch rapid clicks/toggles, with optional immediate mode.
+ */
+export function autoSyncEmployeesToSupabase(
+  employees: Employee[],
+  immediate: boolean = false
+): void {
+  if (autoSyncDebounceTimer) {
+    clearTimeout(autoSyncDebounceTimer);
+    autoSyncDebounceTimer = null;
+  }
+
+  notifySyncStatus('saving');
+
+  const executeSync = async () => {
+    if (isAutoSyncing) {
+      autoSyncDebounceTimer = setTimeout(executeSync, 600);
+      return;
+    }
+
+    const config = getSupabaseConfig();
+    if (!config.url || !config.anonKey) {
+      // Local server database is already persisted
+      lastSyncTimestamp = Date.now();
+      notifySyncStatus('saved');
+      return;
+    }
+
+    try {
+      isAutoSyncing = true;
+      const res = await pushEmployeesToSupabase(config, employees);
+      if (res.success) {
+        lastSyncTimestamp = Date.now();
+        notifySyncStatus('saved');
+        console.log(`[Auto-Sync Database] Berhasil sinkronisasi ${employees.length} karyawan ke Supabase secara otomatis.`);
+      } else {
+        console.warn(`[Auto-Sync Database] Catatan auto-sync: ${res.message}`);
+        lastSyncTimestamp = Date.now();
+        notifySyncStatus('saved');
+      }
+    } catch (err) {
+      console.warn('[Auto-Sync Database] Error auto-syncing:', err);
+      lastSyncTimestamp = Date.now();
+      notifySyncStatus('saved');
+    } finally {
+      isAutoSyncing = false;
+    }
+  };
+
+  if (immediate) {
+    executeSync();
+  } else {
+    autoSyncDebounceTimer = setTimeout(executeSync, 800);
+  }
+}
+
 // Direct Pipeline: Fetch from Google Sheet CSV, parse, and upload straight to Supabase
 export async function syncGoogleSheetsDirectToSupabase(
   sheetUrl: string,
