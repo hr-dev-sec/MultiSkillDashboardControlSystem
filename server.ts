@@ -3,6 +3,9 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
 import dotenv from 'dotenv';
+
+dotenv.config();
+
 import { createServer as createViteServer } from 'vite';
 import {
   initSystemDatabase,
@@ -35,8 +38,6 @@ import {
   persistEmployeesDatabase,
   getAllEmployees
 } from './server/employeeDb.js';
-
-dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

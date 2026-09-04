@@ -314,29 +314,24 @@ export default function App() {
           debugTracker.fetchSupabaseEmployees.cloudCount = sbRes.data.length;
 
           if (sbRes.data.length > 0) {
-            const currentData = getStoredEmployees();
-            // Smart merge: Supabase Cloud is incoming, so any edits made directly in Cloud take precedence,
-            // while periods that exist only on the Server DB are fully preserved.
-            const mergedCloud = mergeEmployeesData(currentData, sbRes.data, 'merge').updatedEmployees;
-            debugTracker.fetchSupabaseEmployees.mergedCount = mergedCloud.length;
+            // Supabase Cloud is the authoritative source of truth.
+            // When connected, we directly adopt the Supabase data rather than blending
+            // with default template records from initial disk seed.
+            const cloudEmps = sbRes.data;
+            debugTracker.fetchSupabaseEmployees.mergedCount = cloudEmps.length;
 
             // Prioritize data persistence across all levels:
             // 1. React State
-            setEmployees(mergedCloud);
+            setEmployees(cloudEmps);
             // 2. Client LocalStorage
-            saveStoredEmployees(mergedCloud, { skipCloudSync: true });
+            saveStoredEmployees(cloudEmps, { skipCloudSync: true });
             // 3. Server Disk Database (/api/employees)
-            saveEmployeesToServer(mergedCloud).catch((err) => {
+            saveEmployeesToServer(cloudEmps).catch((err) => {
               console.warn('[Server DB] Sinkronisasi data Cloud ke Server DB disk:', err);
             });
 
-            // If local/server had periods not yet in Supabase, auto-sync missing periods to Supabase
-            if (mergedCloud.length > sbRes.data.length) {
-              autoSyncEmployeesToSupabase(mergedCloud);
-            }
-
             // Adjust filter period to optimal populated period
-            const defaultPeriod = getDefaultFilterPeriod(mergedCloud);
+            const defaultPeriod = getDefaultFilterPeriod(cloudEmps);
             setFilters((prev) => ({
               ...prev,
               tahun: defaultPeriod.tahun,
@@ -345,7 +340,7 @@ export default function App() {
 
             hasLoadedData = true;
             console.log(
-              `[DB-Debugger] [Step 3] ✅ fetchSupabaseEmployees SUCCESS - Cloud Count: ${sbRes.data.length}, Merged Active Count: ${mergedCloud.length}`
+              `[DB-Debugger] [Step 3] ✅ fetchSupabaseEmployees SUCCESS - Authoritative Cloud Records: ${cloudEmps.length}`
             );
           } else {
             console.log('[DB-Debugger] [Step 3] ℹ️ fetchSupabaseEmployees connected successfully but table contains 0 records.');

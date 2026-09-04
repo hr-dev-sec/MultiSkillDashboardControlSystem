@@ -50,14 +50,18 @@ export function getSupabaseConfig(): SupabaseConfig {
   } catch (_) {}
 
   // Fallback to VITE_ environment variables if available
-  const envUrl = (import.meta as any).env?.VITE_SUPABASE_URL || '';
-  const envKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
-  const envTable = (import.meta as any).env?.VITE_SUPABASE_TABLE || 'employees_multi_skill';
+  const envUrl = String((import.meta as any).env?.VITE_SUPABASE_URL || '').trim();
+  const envKey = String((import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '').trim();
+  const envTable = String((import.meta as any).env?.VITE_SUPABASE_TABLE || 'employees_multi_skill').trim();
+
+  const resolvedUrl = (savedConfig.url && savedConfig.url.trim()) || envUrl;
+  const resolvedAnonKey = (savedConfig.anonKey && savedConfig.anonKey.trim()) || envKey;
+  const resolvedTable = (savedConfig.tableName && savedConfig.tableName.trim()) || envTable || 'employees_multi_skill';
 
   return {
-    url: savedConfig.url || envUrl || '',
-    anonKey: savedConfig.anonKey || envKey || '',
-    tableName: savedConfig.tableName || envTable || 'employees_multi_skill'
+    url: resolvedUrl,
+    anonKey: resolvedAnonKey,
+    tableName: resolvedTable
   };
 }
 
@@ -524,13 +528,23 @@ export function parseRowsToEmployees(
 // -------------------------------------------------------------
 // Dummy / Placeholder Seed Detector
 // -------------------------------------------------------------
+const INITIAL_TEMPLATE_SEED_IDS = new Set<string>([
+  '119711183', '119609201', '119911085', '119911076', '119704071',
+  '119704058', '120008074', '119810069', '119810075', '120501032',
+  '119704065', '119704063', '119308093', '119711198', '119704048',
+  '120405062', '119804020', '119809055', '120102041', '119903088',
+  '120207019', '119806034', '120305082'
+]);
+
 export function isDummySeedEmployee(e: Employee): boolean {
   if (!e) return false;
   const id = (e.empId || '').trim().toUpperCase();
   const name = (e.empName || '').trim().toLowerCase();
   return (
+    INITIAL_TEMPLATE_SEED_IDS.has(id) ||
     id.startsWith('AJN-MJK') ||
-    id === 'EMP-1' ||
+    id.startsWith('EMP-') ||
+    name.startsWith('karyawan ') ||
     name === 'team hr' ||
     name === 'ahmad fadhil kurniawan' ||
     name === 'siti nurhaliza rahayu'
@@ -837,6 +851,111 @@ export async function testSupabaseConnection(config: SupabaseConfig): Promise<{
   }
 }
 
+// -------------------------------------------------------------
+// Robust Case-Insensitive, Space/Punctuation-Agnostic Supabase Row Accessor
+// -------------------------------------------------------------
+export function getRowField(row: Record<string, any>, ...aliases: string[]): any {
+  if (!row || typeof row !== 'object') return undefined;
+
+  // 1. Direct key match
+  for (const alias of aliases) {
+    if (row[alias] !== undefined && row[alias] !== null && row[alias] !== '') {
+      return row[alias];
+    }
+  }
+
+  // 2. Normalized match: strip all non-alphanumeric characters and lowercase
+  const normalizedRow = new Map<string, any>();
+  for (const [k, v] of Object.entries(row)) {
+    if (v !== undefined && v !== null && v !== '') {
+      normalizedRow.set(k.toLowerCase().replace(/[^a-z0-9]/g, ''), v);
+    }
+  }
+
+  for (const alias of aliases) {
+    const normAlias = alias.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (normalizedRow.has(normAlias)) {
+      return normalizedRow.get(normAlias);
+    }
+  }
+
+  // 3. Substring match for compound column names (e.g. 'nama_lengkap', 'nik_karyawan')
+  for (const alias of aliases) {
+    const normAlias = alias.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (normAlias.length < 3) continue;
+    for (const [k, v] of normalizedRow.entries()) {
+      if (k.includes(normAlias) || (normAlias.includes(k) && k.length >= 3)) {
+        return v;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+export function parseBulanField(val: any, fallbackMonth: number = new Date().getMonth() + 1): number {
+  if (val === undefined || val === null || val === '') return fallbackMonth;
+  if (typeof val === 'number') {
+    return val >= 1 && val <= 12 ? Math.round(val) : fallbackMonth;
+  }
+  const str = String(val).trim().toLowerCase();
+  const num = parseInt(str, 10);
+  if (!isNaN(num) && num >= 1 && num <= 12) return num;
+
+  if (str.startsWith('jan')) return 1;
+  if (str.startsWith('feb')) return 2;
+  if (str.startsWith('mar')) return 3;
+  if (str.startsWith('apr')) return 4;
+  if (str.startsWith('mei') || str.startsWith('may')) return 5;
+  if (str.startsWith('jun')) return 6;
+  if (str.startsWith('jul')) return 7;
+  if (str.startsWith('agu') || str.startsWith('aug')) return 8;
+  if (str.startsWith('sep')) return 9;
+  if (str.startsWith('okt') || str.startsWith('oct')) return 10;
+  if (str.startsWith('nov')) return 11;
+  if (str.startsWith('des') || str.startsWith('dec')) return 12;
+
+  // Pattern like '2026-08' or '2026-08-01'
+  const dateMatch = str.match(/\b\d{4}-(\d{1,2})/);
+  if (dateMatch) {
+    const m = parseInt(dateMatch[1], 10);
+    if (!isNaN(m) && m >= 1 && m <= 12) return m;
+  }
+
+  return fallbackMonth;
+}
+
+export function parseTahunField(val: any, fallbackStr: any, fallbackYear: number = new Date().getFullYear()): number {
+  if (val !== undefined && val !== null && val !== '') {
+    const num = parseInt(String(val).trim(), 10);
+    if (!isNaN(num) && num >= 1970 && num <= 2100) return num;
+  }
+  if (fallbackStr) {
+    const m = String(fallbackStr).match(/\b(20\d{2})\b/);
+    if (m) {
+      const parsed = parseInt(m[1], 10);
+      if (!isNaN(parsed) && parsed >= 1970 && parsed <= 2100) return parsed;
+    }
+  }
+  return fallbackYear;
+}
+
+export function parseGenderField(val: any): 'L' | 'P' {
+  if (!val) return 'L';
+  const str = String(val).trim().toUpperCase();
+  if (
+    str.startsWith('P') ||
+    str.startsWith('F') ||
+    str.startsWith('W') ||
+    str.includes('PEREMPUAN') ||
+    str.includes('WANITA') ||
+    str.includes('FEMALE')
+  ) {
+    return 'P';
+  }
+  return 'L';
+}
+
 export async function fetchSupabaseEmployees(
   config: SupabaseConfig,
   currentEmployees: Employee[] = []
@@ -902,6 +1021,7 @@ export async function fetchSupabaseEmployees(
           }
           break;
         }
+
         chunkData = await res.json();
       }
 
@@ -924,6 +1044,8 @@ export async function fetchSupabaseEmployees(
       };
     }
 
+    console.log(`[Supabase Fetch] Berhasil menarik ${rows.length} baris mentah dari tabel "${tableName}". Sampel data pertama:`, rows[0]);
+
     const currentYear = new Date().getFullYear();
     const currentMonth = new Date().getMonth() + 1;
     let maxRowIndex = currentEmployees.reduce((m, e) => Math.max(m, e.rowIndex || 0), 6);
@@ -933,65 +1055,153 @@ export async function fetchSupabaseEmployees(
     const periodsSet = new Set<string>();
 
     rows.forEach((r: any, idx: number) => {
-      const empId = (r.emp_id || r.empId || r.nip || r.nik || r.id_karyawan || `EMP-${idx + 1}`).toString().trim();
-      const empName = (r.emp_name || r.empName || r.nama || r.nama_karyawan || `Karyawan ${idx + 1}`).toString().trim();
-      const divisi = (r.divisi || r.division || '').toString().trim();
-      const department = (r.department || r.dept || r.departemen || '').toString().trim();
-      const section = (r.section || r.seksi || '').toString().trim();
-      const grade = (r.grade || '').toString().trim();
-      const jobGrade = (r.job_grade || r.jobGrade || r.jg || '').toString().trim();
-      const jabatan = (r.jabatan || r.position || r.posisi || '').toString().trim();
-      const rawGender = (r.gender || r.jenis_kelamin || r.jk || 'L').toString().toUpperCase().trim();
-      const gender = rawGender.startsWith('P') || rawGender.startsWith('F') || rawGender.startsWith('W') ? 'P' : 'L';
-      const tanggalPensiun = (r.tanggal_pensiun || r.tanggalPensiun || r.pensiun || '').toString().trim();
-      const pic = (r.pic || '').toString().trim();
-      const tahun = parseInt(r.tahun || r.year || currentYear, 10);
-      const bulan = parseInt(r.bulan || r.month || currentMonth, 10);
+      // 1. Identitas Karyawan (Universal Case-Insensitive Matching)
+      const empId = String(
+        getRowField(r, 'emp_id', 'empId', 'nip', 'nik', 'id_karyawan', 'no_karyawan', 'employee_id', 'badge', 'id') ?? `EMP-${idx + 1}`
+      ).trim();
 
-      periodsSet.add(`${BULAN_LABELS[bulan - 1] || bulan} ${tahun}`);
+      const empName = String(
+        getRowField(r, 'emp_name', 'empName', 'nama', 'nama_karyawan', 'name', 'full_name', 'employee_name') ?? `Karyawan ${idx + 1}`
+      ).trim();
 
-      // Parse skills: handle JSONB object, stringified JSON, or individual skill columns
+      // 2. Struktur Organisasi & Jabatan
+      const divisi = String(getRowField(r, 'divisi', 'division', 'div', 'nama_divisi') ?? '').trim();
+      const department = String(getRowField(r, 'department', 'departemen', 'dept', 'nama_departemen') ?? '').trim();
+      const section = String(getRowField(r, 'section', 'seksi', 'sec', 'bagian', 'nama_seksi') ?? '').trim();
+      const grade = String(getRowField(r, 'grade', 'golongan', 'gol') ?? '').trim();
+      const jobGrade = String(getRowField(r, 'job_grade', 'jobGrade', 'jg') ?? '').trim();
+      const jabatan = String(getRowField(r, 'jabatan', 'position', 'posisi', 'role', 'title') ?? '').trim();
+      const gender = parseGenderField(getRowField(r, 'gender', 'jenis_kelamin', 'jk', 'sex'));
+      const tanggalPensiun = String(getRowField(r, 'tanggal_pensiun', 'tanggalPensiun', 'pensiun', 'tgl_pensiun', 'pension') ?? '').trim();
+      const pic = String(getRowField(r, 'pic', 'penilai', 'evaluator', 'assessor') ?? '').trim();
+
+      // 3. Periode Evaluasi (Tahun & Bulan)
+      const rawTahun = getRowField(r, 'tahun', 'year', 'thn', 'periode_tahun');
+      const rawBulan = getRowField(r, 'bulan', 'month', 'bln', 'periode_bulan');
+      const tahun = parseTahunField(rawTahun, rawBulan, currentYear);
+      const bulan = parseBulanField(rawBulan, currentMonth);
+
+      const periodLabel = `${BULAN_LABELS[bulan - 1] || bulan} ${tahun}`;
+      periodsSet.add(periodLabel);
+
+      // 4. Matriks Kompetensi (Skills)
       let skills: Record<string, boolean> = {};
       INITIAL_SKILL_META.forEach((sm) => {
         skills[sm.code] = false;
       });
 
       let hasParsedSkills = false;
-      if (r.skills) {
-        let rawSkills = r.skills;
-        if (typeof rawSkills === 'string') {
+
+      // Check for JSONB or serialized skills object/array
+      const rawSkills = getRowField(r, 'skills', 'skill', 'kompetensi', 'matrix', 'skills_matrix', 'skill_matrix');
+      if (rawSkills) {
+        let parsedSkillsObj = rawSkills;
+        if (typeof parsedSkillsObj === 'string') {
           try {
-            rawSkills = JSON.parse(rawSkills);
-          } catch (_) {}
+            parsedSkillsObj = JSON.parse(parsedSkillsObj);
+          } catch (_) {
+            // Might be comma/space separated skill codes like "1.1, 1.2, 2.1"
+            const parts = parsedSkillsObj.split(/[,;\s]+/);
+            parts.forEach((code: string) => {
+              const trimmed = code.trim();
+              if (trimmed && skills[trimmed] !== undefined) {
+                skills[trimmed] = true;
+                hasParsedSkills = true;
+              }
+            });
+          }
         }
-        if (typeof rawSkills === 'object' && rawSkills !== null) {
-          Object.keys(rawSkills).forEach((k) => {
-            if (rawSkills[k] === true || rawSkills[k] === 1 || rawSkills[k] === '1' || rawSkills[k] === 'true' || rawSkills[k] === 'TRUE') {
-              skills[k] = true;
+
+        if (Array.isArray(parsedSkillsObj)) {
+          parsedSkillsObj.forEach((code: any) => {
+            const trimmed = String(code).trim();
+            if (trimmed && skills[trimmed] !== undefined) {
+              skills[trimmed] = true;
               hasParsedSkills = true;
+            }
+          });
+        } else if (typeof parsedSkillsObj === 'object' && parsedSkillsObj !== null) {
+          Object.keys(parsedSkillsObj).forEach((k) => {
+            const v = parsedSkillsObj[k];
+            if (
+              v === true ||
+              v === 1 ||
+              v === '1' ||
+              String(v).toLowerCase() === 'true' ||
+              String(v).toLowerCase() === 'ok' ||
+              String(v).toLowerCase() === 'ms'
+            ) {
+              const codeKey = k.replace(/_/g, '.').replace(/^skill\./i, '').replace(/^s\./i, '');
+              if (skills[codeKey] !== undefined) {
+                skills[codeKey] = true;
+                hasParsedSkills = true;
+              } else if (skills[k] !== undefined) {
+                skills[k] = true;
+                hasParsedSkills = true;
+              }
             }
           });
         }
       }
 
-      // Fallback: Check if skills are stored as individual columns on the record (e.g. from direct CSV import to Supabase)
-      if (!hasParsedSkills) {
-        INITIAL_SKILL_META.forEach((sm) => {
-          const val = r[sm.code] ?? r[sm.code.replace('.', '_')] ?? r[`skill_${sm.code}`] ?? r[`skill_${sm.code.replace('.', '_')}`];
-          if (val === true || val === 1 || val === '1' || val === 'TRUE' || val === 'true' || val === 'ok' || val === 'OK') {
+      // Fallback: Check if skills are stored as individual columns on the record
+      INITIAL_SKILL_META.forEach((sm) => {
+        if (!skills[sm.code]) {
+          const val = getRowField(
+            r,
+            sm.code,
+            sm.code.replace('.', '_'),
+            `skill_${sm.code}`,
+            `skill_${sm.code.replace('.', '_')}`,
+            `s_${sm.code.replace('.', '_')}`,
+            `s${sm.code.replace('.', '_')}`,
+            `s${sm.code}`
+          );
+          if (
+            val === true ||
+            val === 1 ||
+            val === '1' ||
+            String(val).toUpperCase() === 'TRUE' ||
+            String(val).toUpperCase() === 'OK' ||
+            String(val).toUpperCase() === 'MS' ||
+            String(val).toUpperCase() === 'Y' ||
+            String(val).toUpperCase() === 'V'
+          ) {
             skills[sm.code] = true;
+            hasParsedSkills = true;
           }
-        });
-      }
+        }
+      });
 
-      const customStandard = r.standard !== undefined && r.standard !== null && !isNaN(Number(r.standard)) ? Number(r.standard) : null;
+      // 5. Kalkulasi Skor & Evaluasi Kriteria Multi-Skill
+      const customStandardRaw = getRowField(r, 'standard', 'standar', 'std');
+      const customStandard = (customStandardRaw !== undefined && !isNaN(Number(customStandardRaw))) ? Number(customStandardRaw) : null;
       const calc = calculateEmployeeScore(skills, jabatan, customStandard);
 
-      const resolvedTotalScore = (calc.totalScore > 0 || hasParsedSkills) ? calc.totalScore : Number(r.total_score ?? r.totalScore ?? 0);
-      const resolvedResult = (calc.totalScore > 0 || hasParsedSkills) ? calc.result : (r.result || (resolvedTotalScore >= (customStandard || 4) ? 'MS' : 'US'));
-      const resolvedStandard = (calc.standard > 0 || hasParsedSkills) ? calc.standard : Number(r.standard ?? 4);
-      const resolvedGap = (calc.totalScore > 0 || hasParsedSkills) ? calc.gap : Number(r.gap ?? (resolvedTotalScore - resolvedStandard));
-      const resolvedJobCategory = normalizeJobCategory(calc.jobCategory || r.job_category || r.jobCategory, jabatan);
+      const dbScoreRaw = getRowField(r, 'total_score', 'totalscore', 'score', 'skor', 'nilai', 'total_skor');
+      const dbResult = getRowField(r, 'result', 'hasil', 'status');
+      const dbGapRaw = getRowField(r, 'gap', 'selisih');
+
+      const resolvedTotalScore = hasParsedSkills
+        ? calc.totalScore
+        : (dbScoreRaw !== undefined && !isNaN(Number(dbScoreRaw)) ? Number(dbScoreRaw) : calc.totalScore);
+
+      const resolvedStandard = (calc.standard > 0)
+        ? calc.standard
+        : (customStandard ?? 4);
+
+      const resolvedResult = (dbResult && String(dbResult).trim().length > 0)
+        ? (String(dbResult).toUpperCase().includes('MS') ? 'MS' : String(dbResult).toUpperCase().includes('US') ? 'US' : calc.result)
+        : calc.result;
+
+      const resolvedGap = (dbGapRaw !== undefined && !isNaN(Number(dbGapRaw)))
+        ? Number(dbGapRaw)
+        : (resolvedTotalScore - resolvedStandard);
+
+      const resolvedJobCategory = normalizeJobCategory(
+        getRowField(r, 'job_category', 'jobcategory', 'kategori_jabatan', 'kategori') || calc.jobCategory,
+        jabatan
+      );
 
       parsed.push({
         rowIndex: ++maxRowIndex,

@@ -345,6 +345,20 @@ export function deleteUser(
 // -------------------------------------------------------------
 export function getSystemConfig(): SystemConfigRecord {
   const db = getSystemDatabase();
+  
+  // Environment variable fallback if supabaseConfig is unconfigured or empty in database
+  const envUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').trim();
+  const envKey = (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || '').trim();
+  const envTable = (process.env.SUPABASE_TABLE || process.env.VITE_SUPABASE_TABLE || 'employees_multi_skill').trim();
+
+  if (!db.config.supabaseConfig || (!db.config.supabaseConfig.url && envUrl)) {
+    db.config.supabaseConfig = {
+      url: db.config.supabaseConfig?.url || envUrl,
+      anonKey: db.config.supabaseConfig?.anonKey || envKey,
+      tableName: db.config.supabaseConfig?.tableName || envTable
+    };
+  }
+
   return db.config;
 }
 

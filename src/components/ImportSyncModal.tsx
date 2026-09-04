@@ -65,6 +65,7 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
   } | null>(null);
   const [showSqlSchema, setShowSqlSchema] = useState(false);
   const [showSchemaDictionary, setShowSchemaDictionary] = useState(false);
+  const [showEnvGuide, setShowEnvGuide] = useState(false);
   const [copiedSql, setCopiedSql] = useState(false);
   const [supabaseSubTab, setSupabaseSubTab] = useState<'config' | 'dictionary' | 'pipeline'>('config');
 
@@ -156,6 +157,14 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
     } else {
       setStatusAlert({ type: 'error', message: res.message });
     }
+  };
+
+  const handleSaveOnlySupabaseConfig = () => {
+    saveSupabaseConfig(supabaseConfig);
+    setStatusAlert({
+      type: 'success',
+      message: 'Konfigurasi Supabase berhasil disimpan ke penyimpanan lokal & database server terpusat.'
+    });
   };
 
   const handleFetchSupabase = async () => {
@@ -718,15 +727,52 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
                         Kredensial &amp; Konfigurasi Supabase Project
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowSqlSchema(!showSqlSchema)}
-                      className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
-                    >
-                      <i className="fa-solid fa-code text-[11px]"></i>
-                      {showSqlSchema ? 'Tutup Script SQL' : 'Lihat Script SQL DDL'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowEnvGuide(!showEnvGuide)}
+                        className="text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <i className="fa-solid fa-server text-[11px]"></i>
+                        {showEnvGuide ? 'Tutup Format .env' : 'Panduan .env / Vercel'}
+                      </button>
+                      <span className="text-slate-300 dark:text-slate-750">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setShowSqlSchema(!showSqlSchema)}
+                        className="text-xs font-bold text-amber-600 dark:text-amber-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <i className="fa-solid fa-code text-[11px]"></i>
+                        {showSqlSchema ? 'Tutup Script SQL' : 'Lihat Script SQL DDL'}
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Environment Variables helper box */}
+                  {showEnvGuide && (
+                    <div className="p-4 rounded-xl bg-slate-900 border border-blue-500/30 text-slate-200 text-xs space-y-2.5 animate-fadeIn">
+                      <div className="flex items-center justify-between">
+                        <p className="font-mono font-bold text-blue-300 text-xs flex items-center gap-1.5">
+                          <i className="fa-solid fa-file-lines"></i>
+                          <span>Environment Variables (Bila Deploy ke Vercel / Cloud Run / .env):</span>
+                        </p>
+                      </div>
+                      <p className="text-[11.5px] text-slate-300 leading-relaxed">
+                        Jika Anda ingin database Supabase otomatis terhubung tanpa input manual setiap reload, Anda dapat mengisi variabel lingkungan berikut di dashboard <strong>Vercel &gt; Settings &gt; Environment Variables</strong> atau file <strong>.env</strong>:
+                      </p>
+                      <pre className="overflow-x-auto p-3 rounded-lg bg-black/60 text-[11px] font-mono text-cyan-300 leading-relaxed border border-white/10">
+{`# Frontend (Vite)
+VITE_SUPABASE_URL=${supabaseConfig.url || 'https://[project-id].supabase.co'}
+VITE_SUPABASE_ANON_KEY=${supabaseConfig.anonKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'}
+VITE_SUPABASE_TABLE=${supabaseConfig.tableName || 'employees_multi_skill'}
+
+# Backend (Node.js Server)
+SUPABASE_URL=${supabaseConfig.url || 'https://[project-id].supabase.co'}
+SUPABASE_ANON_KEY=${supabaseConfig.anonKey || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'}
+SUPABASE_TABLE=${supabaseConfig.tableName || 'employees_multi_skill'}`}
+                      </pre>
+                    </div>
+                  )}
 
                   {/* SQL Schema helper box */}
                   {showSqlSchema && (
@@ -822,7 +868,18 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-2.5 pt-2">
+                  <div className="flex flex-wrap items-center gap-2.5 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleSaveOnlySupabaseConfig}
+                      disabled={!supabaseConfig.url}
+                      className="btn-ghost-navy px-3.5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                      title="Simpan konfigurasi ke LocalStorage dan database server"
+                    >
+                      <i className="fa-solid fa-floppy-disk text-xs text-blue-500"></i>
+                      <span>Simpan Konfigurasi</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={handleTestSupabase}
