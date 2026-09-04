@@ -1,8 +1,4 @@
 {
-  "version": "2.0",
-  "databaseName": "PT Ajinomoto Indonesia - Employees Multi-Skill Database",
-  "lastUpdated": "2026-09-04T07:47:10.324Z",
-  "totalEmployees": 84,
   "employees": [
     {
       "rowIndex": 8,
@@ -9748,5 +9744,6 @@
         "COEC / COEC Site Operation": false
       }
     }
-  ]
+  ],
+  "updatedAt": "2026-09-04T08:17:37.434Z"
 }

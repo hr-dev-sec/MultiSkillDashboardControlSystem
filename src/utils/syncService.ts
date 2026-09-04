@@ -1208,7 +1208,7 @@ export function onDatabaseSyncStatusChange(
   };
 }
 
-function notifySyncStatus(status: DatabaseSyncStatus) {
+export function notifySyncStatus(status: DatabaseSyncStatus) {
   currentSyncStatus = status;
   const date = lastSyncTimestamp ? new Date(lastSyncTimestamp) : new Date();
   syncStatusListeners.forEach((cb) => {

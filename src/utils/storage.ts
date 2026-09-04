@@ -103,7 +103,7 @@ export function getStoredEmployees(): Employee[] {
 
 export function saveStoredEmployees(
   employees: Employee[],
-  options?: { immediateCloudSync?: boolean }
+  options?: { immediateCloudSync?: boolean; skipCloudSync?: boolean }
 ): void {
   try {
     localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(employees));
@@ -112,7 +112,9 @@ export function saveStoredEmployees(
       console.warn('[Server DB] Simpan ke server disk:', err);
     });
     // Automatically synchronize to Supabase cloud in the background without requiring manual push
-    autoSyncEmployeesToSupabase(employees, options?.immediateCloudSync);
+    if (!options?.skipCloudSync) {
+      autoSyncEmployeesToSupabase(employees, options?.immediateCloudSync);
+    }
   } catch (err) {
     console.error('Error saving employees:', err);
   }
@@ -210,12 +212,14 @@ export async function syncSystemFromBackend(): Promise<{ users: UserAccount[]; c
     console.warn('System init from backend skipped:', err);
   }
 
-  if (syncedUsers.length > 0) {
+  const finalUsers = syncedUsers.length > 0 ? syncedUsers : getStoredUsers();
+
+  if (finalUsers.length > 0) {
     // If active session exists, refresh with latest profile details
     const currentSession = getStoredSession();
     const targetUser = currentSession?.username
-      ? syncedUsers.find((u) => u.username.trim().toLowerCase() === currentSession.username.trim().toLowerCase())
-      : (syncedUsers.find((u) => u.username.trim().toLowerCase() === 'hr_admin') || syncedUsers[0]);
+      ? finalUsers.find((u) => u.username.trim().toLowerCase() === currentSession.username.trim().toLowerCase())
+      : (finalUsers.find((u) => u.username.trim().toLowerCase() === 'hr_admin') || finalUsers[0]);
 
     if (targetUser) {
       const refreshedSession: UserSession = {
@@ -238,11 +242,9 @@ export async function syncSystemFromBackend(): Promise<{ users: UserAccount[]; c
       };
       saveStoredSession(refreshedSession);
     }
-
-    return { users: syncedUsers, config: systemConfig };
   }
 
-  return null;
+  return { users: finalUsers, config: systemConfig };
 }
 
 export function getStoredSession(): UserSession | null {

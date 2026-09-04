@@ -22,7 +22,9 @@ import {
   fetchGoogleSheetData,
   getSavedGoogleSheetUrl,
   deleteEmployeeFromSupabase,
-  mergeEmployeesData
+  mergeEmployeesData,
+  notifySyncStatus,
+  autoSyncEmployeesToSupabase
 } from './utils/syncService';
 import { fetchEmployeesFromServer, saveEmployeesToServer } from './utils/systemDbService';
 
@@ -165,74 +167,113 @@ export default function App() {
     }
   }, [isDarkMode]);
 
-  // Auto-fetch data from Server DB / Supabase Cloud / Google Sheets on boot & login across all devices
+  // Auto-fetch and reconcile data from Server DB, Supabase Cloud, and Google Sheets on boot & login
   const loadDatabaseFromSource = useCallback(async () => {
-    let hasLoadedFromCloud = false;
+    let hasLoadedData = false;
+    notifySyncStatus('saving');
 
-    // 1. First sync persistent config and profiles from Server DB
+    // -------------------------------------------------------------------------
+    // Phase 1: Initialize System Configuration, Auth, and Credentials
+    // -------------------------------------------------------------------------
+    let systemConfig: any = undefined;
     try {
-      const res = await syncSystemFromBackend();
-      if (res) {
+      const syncResult = await syncSystemFromBackend();
+      if (syncResult) {
+        systemConfig = syncResult.config;
         const refreshedSession = getSession();
         if (refreshedSession && refreshedSession.username) {
           setCurrentUser(refreshedSession);
         }
       }
+    } catch (e) {
+      console.warn('[System DB Init] Warning saat sinkronisasi profil/sistem:', e);
+    }
 
-      // Check if Server has persistent real employee records
+    // Resolve Supabase configuration: prioritize server configuration if available
+    const sbConfig = (systemConfig?.supabaseConfig?.url && systemConfig?.supabaseConfig?.anonKey)
+      ? systemConfig.supabaseConfig
+      : getSupabaseConfig();
+
+    // -------------------------------------------------------------------------
+    // Phase 2: Instant Rehydration from Server Persistent Database (Local Server Disk)
+    // -------------------------------------------------------------------------
+    try {
       const serverEmps = await fetchEmployeesFromServer();
       if (serverEmps && Array.isArray(serverEmps) && serverEmps.length > 0) {
         const currentLocal = getStoredEmployees();
-        // Smart merge: gabungkan data server dengan data lokal agar periode yang diduplikasi tidak terhapus
-        const merged = mergeEmployeesData(currentLocal, serverEmps, 'merge').updatedEmployees;
-        setEmployees(merged);
-        saveStoredEmployees(merged);
-        const defaultPeriod = getDefaultFilterPeriod(merged);
+        // Smart merge server employees with current local cache (preserves all distinct periods)
+        const mergedServer = mergeEmployeesData(currentLocal, serverEmps, 'merge').updatedEmployees;
+        setEmployees(mergedServer);
+        // Persist to local storage without triggering immediate remote push
+        saveStoredEmployees(mergedServer, { skipCloudSync: true });
+
+        const defaultPeriod = getDefaultFilterPeriod(mergedServer);
         setFilters((prev) => ({
           ...prev,
           tahun: defaultPeriod.tahun,
           bulan: defaultPeriod.bulan
         }));
-        hasLoadedFromCloud = true;
-        console.log(`[Server Sync] Berhasil memuat & menyelaraskan ${merged.length} karyawan dari Server DB.`);
+        hasLoadedData = true;
+        console.log(`[Server DB] Berhasil memuat & menyelaraskan ${mergedServer.length} karyawan dari Server Database.`);
       }
-    } catch (e) {
-      console.warn('System init backend note:', e);
+    } catch (serverErr) {
+      console.warn('[Server DB] Gagal memuat dari server database:', serverErr);
     }
 
-    // 2. Fetch employee data from Supabase Cloud automatically if configured
-    const config = getSupabaseConfig();
-    if (config.url && config.anonKey) {
+    // -------------------------------------------------------------------------
+    // Phase 3: Supabase Cloud Database Synchronization (Authoritative Remote Source)
+    // -------------------------------------------------------------------------
+    if (sbConfig.url && sbConfig.anonKey) {
       try {
-        const res = await fetchSupabaseEmployees(config);
-        if (res.success && res.data && res.data.length > 0) {
-          const currentLocal = getStoredEmployees();
-          const merged = mergeEmployeesData(currentLocal, res.data, 'merge').updatedEmployees;
-          setEmployees(merged);
-          saveStoredEmployees(merged);
-          saveEmployeesToServer(merged).catch(() => {});
+        console.log('[Supabase Cloud] Memeriksa data terkini dari Supabase Cloud...');
+        const sbRes = await fetchSupabaseEmployees(sbConfig);
+        if (sbRes.success && sbRes.data && sbRes.data.length > 0) {
+          const currentData = getStoredEmployees();
+          // Smart merge: Supabase Cloud is incoming, so any edits made directly in Cloud take precedence,
+          // while periods that exist only on the Server DB are fully preserved.
+          const mergedCloud = mergeEmployeesData(currentData, sbRes.data, 'merge').updatedEmployees;
           
-          // Otomatis sesuaikan filter periode aktif dengan data terbaru yang ditarik dari Cloud
-          const defaultPeriod = getDefaultFilterPeriod(merged);
+          // Prioritize data persistence across all levels:
+          // 1. React State
+          setEmployees(mergedCloud);
+          // 2. Client LocalStorage
+          saveStoredEmployees(mergedCloud, { skipCloudSync: true });
+          // 3. Server Disk Database (/api/employees)
+          saveEmployeesToServer(mergedCloud).catch((err) => {
+            console.warn('[Server DB] Sinkronisasi data Cloud ke Server DB disk:', err);
+          });
+
+          // If local/server had periods not yet in Supabase, auto-sync missing periods to Supabase
+          if (mergedCloud.length > sbRes.data.length) {
+            autoSyncEmployeesToSupabase(mergedCloud);
+          }
+
+          // Adjust filter period to optimal populated period
+          const defaultPeriod = getDefaultFilterPeriod(mergedCloud);
           setFilters((prev) => ({
             ...prev,
             tahun: defaultPeriod.tahun,
             bulan: defaultPeriod.bulan
           }));
-          
-          hasLoadedFromCloud = true;
-          console.log(`[Cloud Sync] Otomatis memuat & menyelaraskan ${merged.length} karyawan dari Supabase Cloud.`);
+
+          hasLoadedData = true;
+          console.log(`[Supabase Cloud] Sukses menyinkronkan ${mergedCloud.length} karyawan dari Supabase Cloud.`);
+        } else if (!sbRes.success) {
+          console.warn('[Supabase Cloud] Catatan sinkronisasi Supabase:', sbRes.message);
         }
-      } catch (err) {
-        console.warn('[Cloud Sync] Gagal sinkronisasi Supabase:', err);
+      } catch (sbErr) {
+        console.warn('[Supabase Cloud] Gagal sinkronisasi Supabase Cloud:', sbErr);
       }
     }
 
-    // 3. Fallback: Jika belum termuat dari Server/Cloud, tarik otomatis dari Google Sheet Master
-    if (!hasLoadedFromCloud) {
-      const defaultSheet = getSavedGoogleSheetUrl();
+    // -------------------------------------------------------------------------
+    // Phase 4: Google Sheets Master Fallback (Tertiary Source)
+    // -------------------------------------------------------------------------
+    if (!hasLoadedData) {
+      const defaultSheet = systemConfig?.googleSheetUrl || getSavedGoogleSheetUrl();
       if (defaultSheet) {
         try {
+          console.log('[Google Sheets] Mengambil data dari Google Sheets Master...');
           const sheetRes = await fetchGoogleSheetData(defaultSheet);
           if (sheetRes.success && sheetRes.data && sheetRes.data.length > 0) {
             const currentLocal = getStoredEmployees();
@@ -240,22 +281,24 @@ export default function App() {
             setEmployees(merged);
             saveStoredEmployees(merged);
             saveEmployeesToServer(merged).catch(() => {});
-            
+
             const defaultPeriod = getDefaultFilterPeriod(merged);
             setFilters((prev) => ({
               ...prev,
               tahun: defaultPeriod.tahun,
               bulan: defaultPeriod.bulan
             }));
-            
-            hasLoadedFromCloud = true;
-            console.log(`[Google Sheet Sync] Otomatis memuat ${sheetRes.data.length} karyawan dari Google Sheet Master.`);
+
+            hasLoadedData = true;
+            console.log(`[Google Sheets] Berhasil memuat ${sheetRes.data.length} karyawan dari Google Sheets Master.`);
           }
         } catch (sheetErr) {
-          console.warn('[Google Sheet Sync] Gagal sinkronisasi Google Sheet:', sheetErr);
+          console.warn('[Google Sheets] Gagal sinkronisasi Google Sheets:', sheetErr);
         }
       }
     }
+
+    notifySyncStatus('saved');
   }, []);
 
   // Check initial session & auto-sync system DB & employee data on boot
