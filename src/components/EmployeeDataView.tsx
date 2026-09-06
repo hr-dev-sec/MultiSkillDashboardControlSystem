@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Employee, SkillMeta, PeriodsData } from '../types';
 import { BULAN_LABELS, INITIAL_SKILL_META, getStandardForJabatan } from '../data/initialData';
@@ -89,15 +89,38 @@ export const EmployeeDataView: React.FC<EmployeeDataViewProps> = ({
     return employees.find((e) => e.rowIndex === editingRowIndex) || null;
   }, [employees, editingRowIndex]);
 
-  // Autocomplete Datalist sets
-  const getUniqueValues = (key: keyof Employee): string[] => {
-    const set: Record<string, boolean> = {};
-    employees.forEach((e) => {
-      const v = e[key];
-      if (typeof v === 'string' && v.trim()) set[v.trim()] = true;
-    });
-    return Object.keys(set).sort();
-  };
+  // Autocomplete Datalist sets (Optimized: single pass O(N) memoization)
+  const uniqueValuesMap = useMemo(() => {
+    const sets: Record<string, Set<string>> = {
+      pic: new Set(),
+      divisi: new Set(),
+      department: new Set(),
+      section: new Set(),
+      grade: new Set(),
+      jabatan: new Set()
+    };
+    for (let i = 0; i < employees.length; i++) {
+      const e = employees[i];
+      if (e.pic?.trim()) sets.pic.add(e.pic.trim());
+      if (e.divisi?.trim()) sets.divisi.add(e.divisi.trim());
+      if (e.department?.trim()) sets.department.add(e.department.trim());
+      if (e.section?.trim()) sets.section.add(e.section.trim());
+      if (e.grade?.trim()) sets.grade.add(e.grade.trim());
+      if (e.jabatan?.trim()) sets.jabatan.add(e.jabatan.trim());
+    }
+    const result: Record<string, string[]> = {};
+    for (const k in sets) {
+      result[k] = Array.from(sets[k]).sort();
+    }
+    return result;
+  }, [employees]);
+
+  const getUniqueValues = useCallback(
+    (key: keyof Employee): string[] => {
+      return (uniqueValuesMap as any)[key] || [];
+    },
+    [uniqueValuesMap]
+  );
 
   const initialsOf = (name: string): string => {
     const parts = name.trim().split(/\s+/).filter(Boolean);

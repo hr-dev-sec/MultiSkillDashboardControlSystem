@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { AppFiltersState, PeriodsData, Employee } from '../types';
 import { BULAN_LABELS } from '../data/initialData';
 
@@ -46,45 +46,56 @@ export const SharedFilterBar: React.FC<SharedFilterBarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Compute options dynamically
-  const getOptionsForFilter = (key: keyof AppFiltersState): { value: string; label: string }[] => {
-    if (key === 'tahun') {
-      return periods.tahunList.map((t) => ({ value: String(t), label: String(t) }));
-    }
+  // Compute and memoize options dynamically in a single pass
+  const filterOptionsMap = useMemo(() => {
+    // 1. Tahun
+    const tahunOptions = periods.tahunList.map((t) => ({ value: String(t), label: String(t) }));
 
-    if (key === 'bulan') {
-      let bulanNums: number[] = [];
-      const tahunArr = Array.isArray(filters.tahun)
-        ? filters.tahun
-        : filters.tahun !== undefined && filters.tahun !== null
-        ? [String(filters.tahun)]
-        : [];
-      if (tahunArr.length) {
-        const set: Record<number, boolean> = {};
-        tahunArr.forEach((t) => {
-          (periods.bulanByTahun[String(t)] || []).forEach((b) => {
-            set[b] = true;
-          });
+    // 2. Bulan
+    let bulanNums: number[] = [];
+    const tahunArr = Array.isArray(filters.tahun)
+      ? filters.tahun
+      : filters.tahun !== undefined && filters.tahun !== null
+      ? [String(filters.tahun)]
+      : [];
+    if (tahunArr.length) {
+      const set: Record<number, boolean> = {};
+      tahunArr.forEach((t) => {
+        (periods.bulanByTahun[String(t)] || []).forEach((b) => {
+          set[b] = true;
         });
-        bulanNums = Object.keys(set).map(Number).sort((a, b) => a - b);
-      }
-      if (!bulanNums.length) {
-        bulanNums = Array.from({ length: 12 }, (_, i) => i + 1);
-      }
-      return bulanNums.map((b) => ({ value: String(b), label: BULAN_LABELS[b - 1] || String(b) }));
+      });
+      bulanNums = Object.keys(set).map(Number).sort((a, b) => a - b);
+    }
+    if (!bulanNums.length) {
+      bulanNums = Array.from({ length: 12 }, (_, i) => i + 1);
+    }
+    const bulanOptions = bulanNums.map((b) => ({ value: String(b), label: BULAN_LABELS[b - 1] || String(b) }));
+
+    // 3. Divisi, Department, Jabatan (Computed in a single efficient loop)
+    const divisiSet = new Set<string>();
+    const deptSet = new Set<string>();
+    const jabatanSet = new Set<string>();
+
+    for (let i = 0; i < employees.length; i++) {
+      const e = employees[i];
+      if (e.divisi) divisiSet.add(e.divisi);
+      if (e.department) deptSet.add(e.department);
+      if (e.jabatan) jabatanSet.add(e.jabatan);
     }
 
-    const set: Record<string, boolean> = {};
-    employees.forEach((e) => {
-      if (key === 'divisi' && e.divisi) set[e.divisi] = true;
-      if (key === 'department' && e.department) set[e.department] = true;
-      if (key === 'jabatan' && e.jabatan) set[e.jabatan] = true;
-    });
+    return {
+      tahun: tahunOptions,
+      bulan: bulanOptions,
+      divisi: Array.from(divisiSet).sort().map((val) => ({ value: val, label: val })),
+      department: Array.from(deptSet).sort().map((val) => ({ value: val, label: val })),
+      jabatan: Array.from(jabatanSet).sort().map((val) => ({ value: val, label: val }))
+    };
+  }, [employees, periods, filters.tahun]);
 
-    return Object.keys(set)
-      .sort()
-      .map((val) => ({ value: val, label: val }));
-  };
+  const getOptionsForFilter = useCallback((key: keyof AppFiltersState): { value: string; label: string }[] => {
+    return (filterOptionsMap as any)[key] || [];
+  }, [filterOptionsMap]);
 
   const handleToggleOption = (key: keyof AppFiltersState, value: string) => {
     const raw = filters[key];

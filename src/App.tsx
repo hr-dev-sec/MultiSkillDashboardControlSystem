@@ -53,6 +53,17 @@ export default function App() {
   // Active Tab inside App: 'dashboard' | 'employee' | 'settings'
   const [activeTab, setActiveTab] = useState<'dashboard' | 'employee' | 'settings'>('dashboard');
 
+  // Visited Tabs Cache: keep mounted views in DOM for instant navigation and preserved state
+  const [visitedTabs, setVisitedTabs] = useState<Record<'dashboard' | 'employee' | 'settings', boolean>>({
+    dashboard: true,
+    employee: false,
+    settings: false
+  });
+
+  useEffect(() => {
+    setVisitedTabs((prev) => (prev[activeTab] ? prev : { ...prev, [activeTab]: true }));
+  }, [activeTab]);
+
   // Mobile sidebar state
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
@@ -279,132 +290,20 @@ export default function App() {
       : getSupabaseConfig();
 
     // -------------------------------------------------------------------------
-    // Phase 2: Instant Rehydration from Server Persistent Database (Local Server Disk)
+    // Phase 2 & 3: High-Speed Concurrent Data Rehydration (Server Disk + Supabase Cloud)
     // -------------------------------------------------------------------------
-    console.log('[DB-Debugger] [Step 2] Executing fetchEmployeesFromServer()...');
     debugTracker.fetchEmployeesFromServer.executed = true;
-    try {
-      const serverEmps = await fetchEmployeesFromServer();
-      if (serverEmps && Array.isArray(serverEmps)) {
-        debugTracker.fetchEmployeesFromServer.serverCount = serverEmps.length;
-        if (serverEmps.length > 0) {
-          debugTracker.fetchEmployeesFromServer.success = true;
-          const currentLocal = getStoredEmployees();
-          // Smart merge server employees with current local cache (preserves all distinct periods)
-          const mergedServer = mergeEmployeesData(currentLocal, serverEmps, 'merge').updatedEmployees;
-          debugTracker.fetchEmployeesFromServer.mergedCount = mergedServer.length;
-          
-          setEmployees(mergedServer);
-          // Persist to local storage without triggering immediate remote push
-          saveStoredEmployees(mergedServer, { skipCloudSync: true });
-
-          const defaultPeriod = getDefaultFilterPeriod(mergedServer);
-          setFilters((prev) => ({
-            ...prev,
-            tahun: defaultPeriod.tahun,
-            bulan: defaultPeriod.bulan
-          }));
-          hasLoadedData = true;
-          console.log(
-            `[DB-Debugger] [Step 2] ✅ fetchEmployeesFromServer SUCCESS - Server Raw Count: ${serverEmps.length}, Merged Active Count: ${mergedServer.length}`
-          );
-        } else {
-          debugTracker.fetchEmployeesFromServer.success = true;
-          console.log('[DB-Debugger] [Step 2] ℹ️ fetchEmployeesFromServer returned 0 employees (empty database).');
-        }
-      } else {
-        debugTracker.fetchEmployeesFromServer.success = false;
-        console.warn('[DB-Debugger] [Step 2] ⚠️ fetchEmployeesFromServer returned invalid/null response.');
-      }
-    } catch (serverErr: any) {
-      debugTracker.fetchEmployeesFromServer.error = serverErr?.message || String(serverErr);
-      console.error('[DB-Debugger] [Step 2] ❌ fetchEmployeesFromServer FAILED with error:', serverErr);
-    }
-
-    // -------------------------------------------------------------------------
-    // Phase 3: Supabase Cloud Database Synchronization (Authoritative Remote Source)
-    // -------------------------------------------------------------------------
-    console.log('[DB-Debugger] [Step 3] Evaluating Supabase configuration...');
     debugTracker.fetchSupabaseEmployees.executed = true;
-    if (sbConfig.url && sbConfig.anonKey) {
+
+    const isSbConfigured = Boolean(sbConfig.url && sbConfig.anonKey);
+    if (isSbConfigured) {
       setSupabaseLoadStatus({
         status: 'loading',
         message: `Menghubungkan ke Supabase (tabel: ${sbConfig.tableName || 'employees_multi_skill'})...`,
         count: 0,
         tableName: sbConfig.tableName || 'employees_multi_skill'
       });
-      try {
-        console.log(`[DB-Debugger] [Step 3] Fetching from Supabase Cloud (Table: ${sbConfig.tableName || 'employees_multi_skill'})...`);
-        const sbRes = await fetchSupabaseEmployees(sbConfig);
-        if (sbRes.success && sbRes.data) {
-          debugTracker.fetchSupabaseEmployees.success = true;
-          debugTracker.fetchSupabaseEmployees.cloudCount = sbRes.data.length;
-
-          if (sbRes.data.length > 0) {
-            // Supabase Cloud is the authoritative source of truth.
-            // When connected, we directly adopt the Supabase data rather than blending
-            // with default template records from initial disk seed.
-            const cloudEmps = sbRes.data;
-            debugTracker.fetchSupabaseEmployees.mergedCount = cloudEmps.length;
-
-            // Prioritize data persistence across all levels:
-            // 1. React State
-            setEmployees(cloudEmps);
-            // 2. Client LocalStorage
-            saveStoredEmployees(cloudEmps, { skipCloudSync: true });
-            // 3. Server Disk Database (/api/employees)
-            saveEmployeesToServer(cloudEmps).catch((err) => {
-              console.warn('[Server DB] Sinkronisasi data Cloud ke Server DB disk:', err);
-            });
-
-            // Adjust filter period to optimal populated period
-            const defaultPeriod = getDefaultFilterPeriod(cloudEmps);
-            setFilters((prev) => ({
-              ...prev,
-              tahun: defaultPeriod.tahun,
-              bulan: defaultPeriod.bulan
-            }));
-
-            hasLoadedData = true;
-            setSupabaseLoadStatus({
-              status: 'connected',
-              message: `Tersambung ke Supabase (${cloudEmps.length} karyawan dimuat)`,
-              count: cloudEmps.length,
-              tableName: sbConfig.tableName || 'employees_multi_skill'
-            });
-            console.log(
-              `[DB-Debugger] [Step 3] ✅ fetchSupabaseEmployees SUCCESS - Authoritative Cloud Records: ${cloudEmps.length}`
-            );
-          } else {
-            setSupabaseLoadStatus({
-              status: 'connected',
-              message: `Tersambung ke Supabase, namun tabel "${sbConfig.tableName || 'employees_multi_skill'}" masih kosong (0 rekam data).`,
-              count: 0,
-              tableName: sbConfig.tableName || 'employees_multi_skill'
-            });
-            console.log('[DB-Debugger] [Step 3] ℹ️ fetchSupabaseEmployees connected successfully but table contains 0 records.');
-          }
-        } else {
-          debugTracker.fetchSupabaseEmployees.success = false;
-          debugTracker.fetchSupabaseEmployees.error = sbRes.message || 'Unknown Supabase error';
-          setSupabaseLoadStatus({
-            status: 'error',
-            message: sbRes.message || 'Gagal memuat data dari Supabase.',
-            count: 0,
-            tableName: sbConfig.tableName || 'employees_multi_skill'
-          });
-          console.warn('[DB-Debugger] [Step 3] ⚠️ fetchSupabaseEmployees returned unsuccessful status:', sbRes.message);
-        }
-      } catch (sbErr: any) {
-        debugTracker.fetchSupabaseEmployees.error = sbErr?.message || String(sbErr);
-        setSupabaseLoadStatus({
-          status: 'error',
-          message: sbErr?.message || 'Terjadi kesalahan saat memuat Supabase.',
-          count: 0,
-          tableName: sbConfig.tableName || 'employees_multi_skill'
-        });
-        console.error('[DB-Debugger] [Step 3] ❌ fetchSupabaseEmployees EXCEPTION:', sbErr);
-      }
+      console.log(`[DB-Debugger] [Concurrent Fetch] Starting Server DB & Supabase Cloud in parallel...`);
     } else {
       debugTracker.fetchSupabaseEmployees.skippedReason = 'Supabase credentials (url or anonKey) are not configured';
       setSupabaseLoadStatus({
@@ -414,6 +313,121 @@ export default function App() {
         tableName: sbConfig.tableName || 'employees_multi_skill'
       });
       console.log('[DB-Debugger] [Step 3] ⏭️ fetchSupabaseEmployees SKIPPED: URL or Anon Key not configured in system settings.');
+    }
+
+    // Launch both requests simultaneously
+    const [serverFetchResult, sbFetchResult] = await Promise.allSettled([
+      fetchEmployeesFromServer(),
+      isSbConfigured ? fetchSupabaseEmployees(sbConfig) : Promise.resolve(null)
+    ]);
+
+    // 1. Process Supabase Cloud first (Authoritative Remote Source of Truth)
+    let cloudLoaded = false;
+    if (isSbConfigured && sbFetchResult.status === 'fulfilled' && sbFetchResult.value) {
+      const sbRes = sbFetchResult.value;
+      if (sbRes.success && sbRes.data) {
+        debugTracker.fetchSupabaseEmployees.success = true;
+        debugTracker.fetchSupabaseEmployees.cloudCount = sbRes.data.length;
+
+        if (sbRes.data.length > 0) {
+          const cloudEmps = sbRes.data;
+          debugTracker.fetchSupabaseEmployees.mergedCount = cloudEmps.length;
+          setEmployees(cloudEmps);
+          saveStoredEmployees(cloudEmps, { skipCloudSync: true });
+          saveEmployeesToServer(cloudEmps).catch((err) => {
+            console.warn('[Server DB] Sinkronisasi data Cloud ke Server DB disk:', err);
+          });
+
+          const defaultPeriod = getDefaultFilterPeriod(cloudEmps);
+          setFilters((prev) => ({
+            ...prev,
+            tahun: defaultPeriod.tahun,
+            bulan: defaultPeriod.bulan
+          }));
+
+          hasLoadedData = true;
+          cloudLoaded = true;
+          setSupabaseLoadStatus({
+            status: 'connected',
+            message: `Tersambung ke Supabase (${cloudEmps.length} karyawan dimuat)`,
+            count: cloudEmps.length,
+            tableName: sbConfig.tableName || 'employees_multi_skill'
+          });
+          console.log(
+            `[DB-Debugger] [Step 3] ✅ fetchSupabaseEmployees SUCCESS - Authoritative Cloud Records: ${cloudEmps.length}`
+          );
+        } else {
+          setSupabaseLoadStatus({
+            status: 'connected',
+            message: `Tersambung ke Supabase, namun tabel "${sbConfig.tableName || 'employees_multi_skill'}" masih kosong (0 rekam data).`,
+            count: 0,
+            tableName: sbConfig.tableName || 'employees_multi_skill'
+          });
+          console.log('[DB-Debugger] [Step 3] ℹ️ fetchSupabaseEmployees connected successfully but table contains 0 records.');
+        }
+      } else {
+        debugTracker.fetchSupabaseEmployees.success = false;
+        debugTracker.fetchSupabaseEmployees.error = sbRes.message || 'Unknown Supabase error';
+        setSupabaseLoadStatus({
+          status: 'error',
+          message: sbRes.message || 'Gagal memuat data dari Supabase.',
+          count: 0,
+          tableName: sbConfig.tableName || 'employees_multi_skill'
+        });
+        console.warn('[DB-Debugger] [Step 3] ⚠️ fetchSupabaseEmployees returned unsuccessful status:', sbRes.message);
+      }
+    } else if (isSbConfigured && sbFetchResult.status === 'rejected') {
+      const sbErr = sbFetchResult.reason;
+      debugTracker.fetchSupabaseEmployees.error = sbErr?.message || String(sbErr);
+      setSupabaseLoadStatus({
+        status: 'error',
+        message: sbErr?.message || 'Terjadi kesalahan saat memuat Supabase.',
+        count: 0,
+        tableName: sbConfig.tableName || 'employees_multi_skill'
+      });
+      console.error('[DB-Debugger] [Step 3] ❌ fetchSupabaseEmployees EXCEPTION:', sbErr);
+    }
+
+    // 2. Process Server DB (Hydrates local disk if Cloud was not authoritative/empty)
+    if (serverFetchResult.status === 'fulfilled') {
+      const serverEmps = serverFetchResult.value;
+      if (serverEmps && Array.isArray(serverEmps)) {
+        debugTracker.fetchEmployeesFromServer.serverCount = serverEmps.length;
+        if (serverEmps.length > 0) {
+          debugTracker.fetchEmployeesFromServer.success = true;
+          // Only override active state if Cloud didn't provide authoritative records
+          if (!cloudLoaded) {
+            const currentLocal = getStoredEmployees();
+            const mergedServer = mergeEmployeesData(currentLocal, serverEmps, 'merge').updatedEmployees;
+            debugTracker.fetchEmployeesFromServer.mergedCount = mergedServer.length;
+            setEmployees(mergedServer);
+            saveStoredEmployees(mergedServer, { skipCloudSync: true });
+
+            const defaultPeriod = getDefaultFilterPeriod(mergedServer);
+            setFilters((prev) => ({
+              ...prev,
+              tahun: defaultPeriod.tahun,
+              bulan: defaultPeriod.bulan
+            }));
+            hasLoadedData = true;
+            console.log(
+              `[DB-Debugger] [Step 2] ✅ fetchEmployeesFromServer SUCCESS - Server Raw Count: ${serverEmps.length}, Merged Active Count: ${mergedServer.length}`
+            );
+          } else {
+            console.log(`[DB-Debugger] [Step 2] Server disk checked (${serverEmps.length} records), cloud data prioritized.`);
+          }
+        } else {
+          debugTracker.fetchEmployeesFromServer.success = true;
+          console.log('[DB-Debugger] [Step 2] ℹ️ fetchEmployeesFromServer returned 0 employees (empty database).');
+        }
+      } else {
+        debugTracker.fetchEmployeesFromServer.success = false;
+        console.warn('[DB-Debugger] [Step 2] ⚠️ fetchEmployeesFromServer returned invalid/null response.');
+      }
+    } else {
+      const serverErr = serverFetchResult.reason;
+      debugTracker.fetchEmployeesFromServer.error = serverErr?.message || String(serverErr);
+      console.error('[DB-Debugger] [Step 2] ❌ fetchEmployeesFromServer FAILED with error:', serverErr);
     }
 
     // -------------------------------------------------------------------------
@@ -1119,14 +1133,14 @@ export default function App() {
                   </div>
                 )}
 
-                <AnimatePresence mode="wait">
-                  {activeTab === 'dashboard' && (
-                    <motion.div
-                      key="tab-dashboard"
-                      initial={{ opacity: 0, y: 16, scale: 0.985 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -12, scale: 0.99 }}
-                      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                {/* Keep-Alive Tab Views: Instant 0ms navigation without canvas destruction or lag */}
+                <div className="w-full">
+                  {/* TAB 1: DASHBOARD */}
+                  {visitedTabs.dashboard && (
+                    <div
+                      id="tab-pane-dashboard"
+                      style={{ display: activeTab === 'dashboard' ? 'block' : 'none' }}
+                      className={activeTab === 'dashboard' ? 'animate-in fade-in duration-100' : ''}
                     >
                       <DashboardView
                         stats={dashboardStats}
@@ -1134,16 +1148,15 @@ export default function App() {
                         onOpenPdfModal={() => setIsGlobalPdfModalOpen(true)}
                         onOpenExcelModal={() => setIsGlobalExcelModalOpen(true)}
                       />
-                    </motion.div>
+                    </div>
                   )}
 
-                  {activeTab === 'employee' && (
-                    <motion.div
-                      key="tab-employee"
-                      initial={{ opacity: 0, y: 16, scale: 0.985 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -12, scale: 0.99 }}
-                      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                  {/* TAB 2: DATA MULTI-SKILL */}
+                  {visitedTabs.employee && (
+                    <div
+                      id="tab-pane-employee"
+                      style={{ display: activeTab === 'employee' ? 'block' : 'none' }}
+                      className={activeTab === 'employee' ? 'animate-in fade-in duration-100' : ''}
                     >
                       <EmployeeDataView
                         employees={employees}
@@ -1158,16 +1171,15 @@ export default function App() {
                         onOpenExcelModal={() => setIsGlobalExcelModalOpen(true)}
                         onOpenPdfModal={() => setIsGlobalPdfModalOpen(true)}
                       />
-                    </motion.div>
+                    </div>
                   )}
 
-                  {activeTab === 'settings' && (
-                    <motion.div
-                      key="tab-settings"
-                      initial={{ opacity: 0, y: 16, scale: 0.985 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: -12, scale: 0.99 }}
-                      transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                  {/* TAB 3: PENGATURAN & LAPORAN */}
+                  {visitedTabs.settings && (
+                    <div
+                      id="tab-pane-settings"
+                      style={{ display: activeTab === 'settings' ? 'block' : 'none' }}
+                      className={activeTab === 'settings' ? 'animate-in fade-in duration-100' : ''}
                     >
                       <SettingsView
                         currentUser={currentUser}
@@ -1194,9 +1206,9 @@ export default function App() {
                           setCurrentUser(updatedUser);
                         }}
                       />
-                    </motion.div>
+                    </div>
                   )}
-                </AnimatePresence>
+                </div>
               </div>
             </main>
           </div>
