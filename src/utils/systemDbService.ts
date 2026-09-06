@@ -28,17 +28,17 @@ async function safeParseJson<T = any>(res: Response, fallbackMessage: string): P
         message: parsed?.message || (res.ok ? 'Sukses' : fallbackMessage)
       };
     }
-    // If server returned 404 (e.g. static hosting environment like Vercel or GitHub Pages)
-    if (res.status === 404) {
+    // If server returned 404, 405, or HTML (e.g. static hosting environment like Vercel or GitHub Pages returning index.html)
+    if (res.status === 404 || res.status === 405 || contentType.includes('text/html')) {
+      isServerApiSupported = false;
       return {
         ok: false,
         data: null,
         message: fallbackMessage || 'API endpoint tidak tersedia di host ini (mode client-only aktif).'
       };
     }
-    // If server returned text/html (e.g. other error or Vite proxying during startup)
+    // If server returned another non-JSON text
     const text = await res.text();
-    console.warn(`Non-JSON response (${res.status}):`, text.slice(0, 120));
     return {
       ok: false,
       data: null,
@@ -71,7 +71,8 @@ export async function fetchSystemInit(): Promise<SystemInitData | null> {
   }
   try {
     const res = await fetch('/api/system/init');
-    if (res.status === 404) {
+    const contentType = res.headers.get('content-type') || '';
+    if (res.status === 404 || res.status === 405 || !contentType.includes('application/json')) {
       isServerApiSupported = false;
       return null;
     }
@@ -647,7 +648,8 @@ export async function saveEmployeesToServer(employees: any[]): Promise<{ success
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ employees })
     });
-    if (res.status === 404) {
+    const contentType = res.headers.get('content-type') || '';
+    if (res.status === 404 || res.status === 405 || !contentType.includes('application/json')) {
       isServerApiSupported = false;
       return { success: false, message: 'Server database tidak aktif pada host ini.' };
     }
@@ -672,7 +674,8 @@ export async function fetchEmployeesFromServer(): Promise<any[] | null> {
   }
   try {
     const res = await fetch('/api/employees');
-    if (res.status === 404) {
+    const contentType = res.headers.get('content-type') || '';
+    if (res.status === 404 || res.status === 405 || !contentType.includes('application/json')) {
       isServerApiSupported = false;
       return null;
     }

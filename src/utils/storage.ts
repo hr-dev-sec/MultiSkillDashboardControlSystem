@@ -41,7 +41,13 @@ import {
   pushEmployeesToSupabase
 } from './syncService';
 
-export { calculateEmployeeScore };
+import {
+  saveEmployeesToIndexedDB,
+  getEmployeesFromIndexedDB,
+  clearEmployeesIndexedDB
+} from './indexedDbStorage';
+
+export { calculateEmployeeScore, saveEmployeesToIndexedDB, getEmployeesFromIndexedDB, clearEmployeesIndexedDB };
 import { jsPDF } from 'jspdf';
 
 const STORAGE_KEYS = {
@@ -50,6 +56,30 @@ const STORAGE_KEYS = {
   SESSION: 'msm_session_v2',
   DARK_MODE: 'msm.darkMode'
 };
+
+// In-memory employees cache to instantly serve dataset without re-parsing multi-megabyte JSON
+let inMemoryEmployeesCache: Employee[] | null = null;
+
+export function getInMemoryEmployees(): Employee[] | null {
+  return inMemoryEmployeesCache;
+}
+
+export function setInMemoryEmployees(employees: Employee[]): void {
+  inMemoryEmployeesCache = employees;
+}
+
+export async function hydrateEmployeesFromIndexedDB(): Promise<Employee[] | null> {
+  try {
+    const idbData = await getEmployeesFromIndexedDB();
+    if (idbData && Array.isArray(idbData) && idbData.length > 0) {
+      inMemoryEmployeesCache = idbData;
+      return idbData;
+    }
+  } catch (err) {
+    console.warn('[Storage] Hydrate from IndexedDB:', err);
+  }
+  return null;
+}
 
 export const AJINOMOTO_LOGO_URL = 'https://upload.wikimedia.org/wikipedia/commons/0/01/Ajinomoto_Group_Global_Brand_logo.png';
 
@@ -103,6 +133,11 @@ export function normalizeJobCategory(rawCategory: any, jabatan?: string): JobPos
 // Storage helpers
 export function getStoredEmployees(): Employee[] {
   try {
+    // 1. If we already have in-memory employees (e.g. loaded from Supabase or IndexedDB), return directly
+    if (inMemoryEmployeesCache && inMemoryEmployeesCache.length > 0) {
+      return inMemoryEmployeesCache;
+    }
+
     const raw = localStorage.getItem(STORAGE_KEYS.EMPLOYEES);
     let employees: Employee[];
     if (!raw) {
@@ -110,7 +145,23 @@ export function getStoredEmployees(): Employee[] {
       saveStoredEmployees(employees);
       return employees;
     }
-    employees = JSON.parse(raw);
+
+    const parsed = JSON.parse(raw);
+    // If it's a pointer to IndexedDB or large dataset metadata marker
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && (parsed as any).__isLargeDataset) {
+      if (inMemoryEmployeesCache && inMemoryEmployeesCache.length > 0) {
+        return inMemoryEmployeesCache;
+      }
+      return generateInitialEmployees();
+    }
+
+    if (!Array.isArray(parsed)) {
+      employees = generateInitialEmployees();
+      saveStoredEmployees(employees);
+      return employees;
+    }
+
+    employees = parsed;
     
     // Ensure all loaded employees have up-to-date score and result calculations
     let needsUpdate = false;
@@ -138,6 +189,8 @@ export function getStoredEmployees(): Employee[] {
       return emp;
     });
 
+    inMemoryEmployeesCache = sanitized;
+
     if (needsUpdate) {
       saveStoredEmployees(sanitized);
       return sanitized;
@@ -145,8 +198,8 @@ export function getStoredEmployees(): Employee[] {
 
     return employees;
   } catch (err) {
-    console.error('Error loading employees:', err);
-    return generateInitialEmployees();
+    console.warn('Fallback loading employees:', err);
+    return inMemoryEmployeesCache || generateInitialEmployees();
   }
 }
 
@@ -154,18 +207,47 @@ export function saveStoredEmployees(
   employees: Employee[],
   options?: { immediateCloudSync?: boolean; skipCloudSync?: boolean }
 ): void {
+  // 1. Immediately cache in memory for synchronous access
+  inMemoryEmployeesCache = employees;
+
+  // 2. Safely persist to IndexedDB (handles thousands of records, no 5MB quota limit)
+  saveEmployeesToIndexedDB(employees).catch((err) => {
+    console.warn('[Storage] Simpan ke IndexedDB:', err);
+  });
+
+  // 3. Persist to localStorage with QuotaExceededError protection
   try {
-    localStorage.setItem(STORAGE_KEYS.EMPLOYEES, JSON.stringify(employees));
-    // Asynchronously synchronize employees to persistent server disk (server/data/employees_db.json)
-    saveEmployeesToServer(employees).catch((err) => {
-      console.warn('[Server DB] Simpan ke server disk:', err);
-    });
-    // Automatically synchronize to Supabase cloud in the background without requiring manual push
-    if (!options?.skipCloudSync) {
-      autoSyncEmployeesToSupabase(employees, options?.immediateCloudSync);
+    const serialized = JSON.stringify(employees);
+    // Standard browser localStorage limit is ~5MB. If serialized payload > 2MB, avoid blowing quota
+    if (serialized.length < 2_000_000) {
+      localStorage.setItem(STORAGE_KEYS.EMPLOYEES, serialized);
+    } else {
+      // Large dataset: store metadata pointer so localStorage does NOT throw QuotaExceededError
+      localStorage.setItem(
+        STORAGE_KEYS.EMPLOYEES,
+        JSON.stringify({
+          __isLargeDataset: true,
+          count: employees.length,
+          savedAt: new Date().toISOString()
+        })
+      );
     }
-  } catch (err) {
-    console.error('Error saving employees:', err);
+  } catch (err: any) {
+    // Gracefully handle any QuotaExceededError
+    console.warn('[Storage] LocalStorage quota reached. Data disimpan aman di IndexedDB & memori runtime.');
+    try {
+      localStorage.removeItem(STORAGE_KEYS.EMPLOYEES);
+    } catch (_) {}
+  }
+
+  // 4. Asynchronously synchronize employees to persistent server disk (if server API exists)
+  saveEmployeesToServer(employees).catch((err) => {
+    console.warn('[Server DB] Simpan ke server disk:', err);
+  });
+
+  // 5. Automatically synchronize to Supabase cloud in the background without requiring manual push
+  if (!options?.skipCloudSync) {
+    autoSyncEmployeesToSupabase(employees, options?.immediateCloudSync);
   }
 }
 

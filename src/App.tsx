@@ -3,6 +3,8 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   getStoredEmployees,
   saveStoredEmployees,
+  getInMemoryEmployees,
+  hydrateEmployeesFromIndexedDB,
   getSession,
   saveSession,
   clearSession,
@@ -219,8 +221,15 @@ export default function App() {
     };
 
     try {
-      const initialLocal = getStoredEmployees();
-      debugTracker.initialLocalCount = initialLocal.length;
+      const idbData = await hydrateEmployeesFromIndexedDB();
+      if (idbData && idbData.length > 0) {
+        setEmployees(idbData);
+        debugTracker.initialLocalCount = idbData.length;
+        console.log(`[DB-Debugger] [Step 0] ⚡ Hydrated ${idbData.length} employees from IndexedDB cache.`);
+      } else {
+        const initialLocal = getStoredEmployees();
+        debugTracker.initialLocalCount = initialLocal.length;
+      }
     } catch {
       debugTracker.initialLocalCount = 0;
     }
@@ -458,8 +467,13 @@ export default function App() {
     // Final Summary & Diagnostic Table
     // -------------------------------------------------------------------------
     try {
-      const finalStored = getStoredEmployees();
-      debugTracker.finalStateCount = finalStored.length;
+      const inMem = getInMemoryEmployees();
+      if (inMem && inMem.length > 0) {
+        debugTracker.finalStateCount = inMem.length;
+      } else {
+        const finalStored = getStoredEmployees();
+        debugTracker.finalStateCount = finalStored.length;
+      }
     } catch {
       debugTracker.finalStateCount = 0;
     }

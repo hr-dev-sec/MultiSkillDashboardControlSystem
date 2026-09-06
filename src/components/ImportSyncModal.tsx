@@ -11,6 +11,7 @@ import {
   testSupabaseConnection,
   fetchSupabaseEmployees,
   pushEmployeesToSupabase,
+  autoSyncEmployeesToSupabase,
   syncGoogleSheetsDirectToSupabase,
   generateSupabaseSqlTable,
   getSupabaseSchemaDictionary,
@@ -83,6 +84,10 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
   const [mergeMode, setMergeMode] = useState<MergeMode>('merge');
   const [statusAlert, setStatusAlert] = useState<{ type: 'success' | 'error' | 'info'; message: string } | null>(null);
   const [isApplying, setIsApplying] = useState(false);
+  const [pushMode, setPushMode] = useState<'upsert' | 'replace'>('upsert');
+  const [pipelineMode, setPipelineMode] = useState<'upsert' | 'replace'>('upsert');
+  const [pushDataSource, setPushDataSource] = useState<'current' | 'preview'>('current');
+  const [alsoSyncToSupabase, setAlsoSyncToSupabase] = useState<boolean>(true);
 
   // Custom Modal Confirmation State
   const [confirmModal, setConfirmModal] = useState<{
@@ -250,11 +255,12 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
     }
   };
 
-  const executePushSupabase = async () => {
+  const executePushSupabase = async (mode: 'upsert' | 'replace' = pushMode, customData?: Employee[]) => {
     setIsPushingSupabase(true);
-    const res = await pushEmployeesToSupabase(supabaseConfig, currentEmployees, (p) => {
+    const dataToPush = customData || (pushDataSource === 'preview' && previewData?.parsedEmployees?.length ? previewData.parsedEmployees : currentEmployees);
+    const res = await pushEmployeesToSupabase(supabaseConfig, dataToPush, (p) => {
       setSyncProgress(p);
-    });
+    }, { mode });
     setIsPushingSupabase(false);
 
     if (res.success) {
@@ -267,21 +273,30 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
     }
   };
 
-  const handlePushSupabase = () => {
+  const handlePushSupabase = (customMode?: 'upsert' | 'replace', customData?: Employee[]) => {
     setStatusAlert(null);
     setSyncProgress(null);
     saveSupabaseConfig(supabaseConfig);
 
+    const modeToUse = customMode || pushMode;
+    const targetData = customData || (pushDataSource === 'preview' && previewData?.parsedEmployees?.length ? previewData.parsedEmployees : currentEmployees);
+
     setConfirmModal({
       isOpen: true,
-      title: 'Konfirmasi Unggah ke Cloud Database Supabase',
-      variant: 'success',
-      icon: 'fa-solid fa-cloud-arrow-up',
-      confirmLabel: 'Ya, Unggah Batch Data',
+      title: modeToUse === 'replace' ? 'Konfirmasi Ganti Bersih (Replace Total) Supabase' : 'Konfirmasi Unggah ke Cloud Database Supabase',
+      variant: modeToUse === 'replace' ? 'danger' : 'success',
+      icon: modeToUse === 'replace' ? 'fa-solid fa-triangle-exclamation' : 'fa-solid fa-cloud-arrow-up',
+      confirmLabel: modeToUse === 'replace' ? 'Ya, Kosongkan & Tulis Ulang Semua' : 'Ya, Unggah Batch Data',
       description: (
         <div className="space-y-3">
           <p>
-            Anda akan mengunggah dan mensinkronkan data lokal ke cloud database:
+            {modeToUse === 'replace' ? (
+              <span className="text-rose-600 dark:text-rose-400 font-bold">
+                PERINGATAN: Seluruh isi tabel di Supabase akan dikosongkan terlebih dahulu, lalu diisi ulang dengan data berikut:
+              </span>
+            ) : (
+              <span>Anda akan mengunggah dan mensinkronkan data ke cloud database:</span>
+            )}
           </p>
           <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-900 dark:text-emerald-200">
             <div className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
@@ -289,22 +304,24 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
               <span>Tabel: {supabaseConfig.tableName || 'employees_multi_skill'}</span>
             </div>
             <div className="text-[11px] text-slate-600 dark:text-slate-400 font-mono mt-1">
-              Jumlah Rekam Data: <strong>{currentEmployees.length} Karyawan</strong> (Upsert by NIK + Tahun + Bulan)
+              Jumlah Rekam Data: <strong>{targetData.length} Karyawan</strong> ({modeToUse === 'replace' ? 'Clean Replace / Ganti Total' : 'Upsert by NIK + Periode'})
             </div>
           </div>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Data akan diunggah dalam batch aman tanpa menghapus data historis periode lainnya.
+            {modeToUse === 'replace'
+              ? 'Mode ini memastikan jumlah rekam data di Supabase langsung berubah dan tepat sama dengan data yang diunggah.'
+              : 'Data akan diunggah dalam batch aman tanpa menghapus data historis periode lainnya.'}
           </p>
         </div>
       ),
       onConfirm: () => {
         setConfirmModal((prev) => ({ ...prev, isOpen: false }));
-        executePushSupabase();
+        executePushSupabase(modeToUse, targetData);
       }
     });
   };
 
-  const executeDirectSync = async () => {
+  const executeDirectSync = async (mode: 'upsert' | 'replace' = pipelineMode) => {
     setIsSyncingDirect(true);
     setSyncProgress({
       percent: 5,
@@ -317,7 +334,7 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
 
     const res = await syncGoogleSheetsDirectToSupabase(sheetUrl, supabaseConfig, currentEmployees, (p) => {
       setSyncProgress(p);
-    });
+    }, { mode });
     setIsSyncingDirect(false);
 
     if (res.success && res.data) {
@@ -326,17 +343,20 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
       }
       setStatusAlert({
         type: 'success',
-        message: `${res.message} Data siap juga untuk diterapkan ke state aplikasi lokal jika diinginkan.`
+        message: `${res.message} Data hasil sinkronisasi juga langsung diterapkan ke dashboard aplikasi.`
       });
       try {
         confetti({ particleCount: 75, spread: 80, origin: { y: 0.55 } });
       } catch (_) {}
+
+      // Automatically apply to application state so local and Supabase match immediately!
+      onApplySync(res.data, res.message);
     } else {
       setStatusAlert({ type: 'error', message: res.message });
     }
   };
 
-  const handleDirectSyncGoogleSheetsToSupabase = () => {
+  const handleDirectSyncGoogleSheetsToSupabase = (customMode?: 'upsert' | 'replace') => {
     setStatusAlert(null);
     setSyncProgress(null);
 
@@ -352,12 +372,14 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
     saveGoogleSheetUrl(sheetUrl);
     saveSupabaseConfig(supabaseConfig);
 
+    const modeToUse = customMode || pipelineMode;
+
     setConfirmModal({
       isOpen: true,
-      title: 'Jalankan Pipeline Sinkronisasi Langsung',
-      variant: 'info',
+      title: modeToUse === 'replace' ? 'Pipeline Ganti Bersih (Replace) Google Sheets ➔ Supabase' : 'Jalankan Pipeline Sinkronisasi Langsung',
+      variant: modeToUse === 'replace' ? 'danger' : 'info',
       icon: 'fa-solid fa-arrows-spin',
-      confirmLabel: 'Mulai Sinkronisasi',
+      confirmLabel: modeToUse === 'replace' ? 'Mulai Ganti Bersih' : 'Mulai Sinkronisasi',
       description: (
         <div className="space-y-3">
           <p>
@@ -374,14 +396,22 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
             </div>
             <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center gap-2.5">
               <span className="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-bold flex items-center justify-center text-[10px]">3</span>
-              <span>Unggah batch langsung ke tabel <strong>"{supabaseConfig.tableName}"</strong> di Supabase</span>
+              <span>
+                {modeToUse === 'replace'
+                  ? `Kosongkan tabel "${supabaseConfig.tableName}" lalu tulis ulang dengan data Google Sheets`
+                  : `Unggah batch langsung (upsert) ke tabel "${supabaseConfig.tableName}" di Supabase`}
+              </span>
+            </div>
+            <div className="p-2.5 rounded-xl bg-slate-100 dark:bg-white/5 border border-slate-200 dark:border-white/10 flex items-center gap-2.5">
+              <span className="w-5 h-5 rounded-full bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 font-bold flex items-center justify-center text-[10px]">4</span>
+              <span>Terapkan hasil tarikan ke dashboard aplikasi secara instan</span>
             </div>
           </div>
         </div>
       ),
       onConfirm: () => {
         setConfirmModal((prev) => ({ ...prev, isOpen: false }));
-        executeDirectSync();
+        executeDirectSync(modeToUse);
       }
     });
   };
@@ -476,6 +506,10 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
       try {
         confetti({ particleCount: 70, spread: 80, origin: { y: 0.5 } });
       } catch (_) {}
+
+      if (alsoSyncToSupabase && supabaseConfig.url && supabaseConfig.anonKey) {
+        autoSyncEmployeesToSupabase(result.updatedEmployees, true);
+      }
 
       onApplySync(result.updatedEmployees, msg);
       onClose();
@@ -942,11 +976,45 @@ SUPABASE_TABLE=${supabaseConfig.tableName || 'employees_multi_skill'}`}
                         <span>Tarik &amp; Gabungkan (Merge)</span>
                       </button>
 
+                      {previewData?.parsedEmployees && previewData.parsedEmployees.length > 0 && (
+                        <div className="w-full p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-amber-900 dark:text-amber-200 font-medium">
+                            <i className="fa-solid fa-file-import mr-1.5 text-amber-500"></i>
+                            Pilih Sumber Data untuk Diunggah ke Supabase:
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setPushDataSource('preview')}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                pushDataSource === 'preview'
+                                  ? 'bg-amber-600 text-white shadow-xs'
+                                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                              }`}
+                            >
+                              Hasil Tarikan ({previewData.totalRows})
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPushDataSource('current')}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                                pushDataSource === 'current'
+                                  ? 'bg-amber-600 text-white shadow-xs'
+                                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+                              }`}
+                            >
+                              Data Aktif ({currentEmployees.length})
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       <button
                         type="button"
-                        onClick={handlePushSupabase}
+                        onClick={() => handlePushSupabase('upsert')}
                         disabled={isPushingSupabase || !supabaseConfig.url || !currentEmployees.length}
                         className="btn-gold px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50 hover:opacity-95 transition"
+                        title="Perbarui data yang cocok (NIK & Periode) dan tambahkan data baru"
                       >
                         {isPushingSupabase ? (
                           <>
@@ -956,9 +1024,20 @@ SUPABASE_TABLE=${supabaseConfig.tableName || 'employees_multi_skill'}`}
                         ) : (
                           <>
                             <i className="fa-solid fa-cloud-arrow-up text-xs"></i>
-                            <span>Push Data Lokal ➔ Supabase</span>
+                            <span>Push Upsert ke Supabase</span>
                           </>
                         )}
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handlePushSupabase('replace')}
+                        disabled={isPushingSupabase || !supabaseConfig.url || !currentEmployees.length}
+                        className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-bold flex items-center gap-2 cursor-pointer shadow-sm disabled:opacity-50 transition"
+                        title="Kosongkan tabel Supabase lalu isi ulang dengan data ini agar jumlah data di Supabase pasti berubah"
+                      >
+                        <i className="fa-solid fa-arrows-rotate text-xs"></i>
+                        <span>Push Ganti Bersih (Replace Total)</span>
                       </button>
                     </div>
 
@@ -1053,7 +1132,7 @@ SUPABASE_TABLE=${supabaseConfig.tableName || 'employees_multi_skill'}`}
                     </div>
                   </div>
 
-                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700/80 space-y-2 text-xs">
+                  <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-850 border border-slate-200 dark:border-slate-700/80 space-y-3 text-xs">
                     <div className="flex items-center justify-between">
                       <span className="font-semibold text-slate-700 dark:text-slate-300">Sumber Data:</span>
                       <span className="font-mono text-[11px] text-emerald-700 dark:text-emerald-400 font-bold truncate max-w-[280px]">
@@ -1066,18 +1145,73 @@ SUPABASE_TABLE=${supabaseConfig.tableName || 'employees_multi_skill'}`}
                         Supabase &gt; {supabaseConfig.tableName || 'employees_multi_skill'}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold text-slate-700 dark:text-slate-300">Resolusi Konflik:</span>
-                      <span className="badge-pill bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 text-[10px] font-mono">
-                        UPSERT ON CONFLICT (emp_id, tahun, bulan)
-                      </span>
+                    <div className="pt-1 border-t border-slate-200 dark:border-slate-800">
+                      <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">
+                        Pilihan Metode Penulisan Data ke Supabase:
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <label
+                          className={`p-2.5 rounded-xl border flex items-start gap-2.5 cursor-pointer transition ${
+                            pipelineMode === 'upsert'
+                              ? 'bg-blue-500/10 border-blue-500/30 text-blue-900 dark:text-blue-200'
+                              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="pipelineMode"
+                            checked={pipelineMode === 'upsert'}
+                            onChange={() => setPipelineMode('upsert')}
+                            className="mt-0.5"
+                          />
+                          <div>
+                            <div className="font-bold text-xs">Upsert (Update &amp; Tambah)</div>
+                            <div className="text-[11px] opacity-80 mt-0.5">
+                              Perbarui baris yang memiliki NIK + Periode yang sama, tambahkan baris baru.
+                            </div>
+                          </div>
+                        </label>
+
+                        <label
+                          className={`p-2.5 rounded-xl border flex items-start gap-2.5 cursor-pointer transition ${
+                            pipelineMode === 'replace'
+                              ? 'bg-rose-500/10 border-rose-500/30 text-rose-900 dark:text-rose-200'
+                              : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          <input
+                            type="radio"
+                            name="pipelineMode"
+                            checked={pipelineMode === 'replace'}
+                            onChange={() => setPipelineMode('replace')}
+                            className="mt-0.5"
+                          />
+                          <div>
+                            <div className="font-bold text-xs text-rose-600 dark:text-rose-400">Ganti Bersih (Replace Total)</div>
+                            <div className="text-[11px] opacity-80 mt-0.5">
+                              Kosongkan tabel Supabase lalu isi ulang dengan data Google Sheets (jumlah data pasti berubah sesuai sheet).
+                            </div>
+                          </div>
+                        </label>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-2">
+                  <div className="flex flex-wrap items-center justify-end gap-3 pt-2">
                     <button
                       type="button"
-                      onClick={handleDirectSyncGoogleSheetsToSupabase}
+                      onClick={() => handleDirectSyncGoogleSheetsToSupabase('replace')}
+                      disabled={isSyncingDirect || !supabaseConfig.url || !sheetUrl}
+                      className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50 transition"
+                      title="Kosongkan tabel Supabase terlebih dahulu lalu masukkan seluruh data dari Google Sheets"
+                    >
+                      <i className="fa-solid fa-arrows-rotate text-xs"></i>
+                      <span>Jalankan Ganti Bersih (Replace)</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleDirectSyncGoogleSheetsToSupabase('upsert')}
                       disabled={isSyncingDirect || !supabaseConfig.url || !sheetUrl}
                       className="btn-navy px-5 py-2.5 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
                     >
@@ -1089,7 +1223,7 @@ SUPABASE_TABLE=${supabaseConfig.tableName || 'employees_multi_skill'}`}
                       ) : (
                         <>
                           <i className="fa-solid fa-arrows-rotate text-amber-400 text-xs"></i>
-                          <span>Jalankan Sinkronisasi Google Sheets ➔ Supabase</span>
+                          <span>Jalankan Sinkronisasi (Upsert)</span>
                         </>
                       )}
                     </button>
@@ -1354,33 +1488,62 @@ SUPABASE_TABLE=${supabaseConfig.tableName || 'employees_multi_skill'}`}
         </div>
 
         {/* Modal Footer Controls */}
-        <div className="px-5 sm:px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0 bg-slate-50/80 dark:bg-slate-900">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition cursor-pointer"
-          >
-            Batal
-          </button>
+        <div className="px-5 sm:px-6 py-3.5 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3 shrink-0 bg-slate-50/80 dark:bg-slate-900">
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-800 transition cursor-pointer"
+            >
+              Batal
+            </button>
 
-          <button
-            type="button"
-            onClick={handleApplyToDatabase}
-            disabled={isApplying || !previewData || !previewData.parsedEmployees.length}
-            className="btn-navy px-6 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50 hover:opacity-95 transition"
-          >
-            {isApplying ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                <span>Menerapkan Sinkronisasi...</span>
-              </>
-            ) : (
-              <>
-                <i className="fa-solid fa-check text-xs"></i>
-                <span>Terapkan Data ke Database ({previewData?.totalRows || 0})</span>
-              </>
+            {previewData && previewData.parsedEmployees.length > 0 && supabaseConfig.url && supabaseConfig.anonKey && (
+              <button
+                type="button"
+                onClick={() => handlePushSupabase('replace', previewData.parsedEmployees)}
+                disabled={isPushingSupabase}
+                className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs transition disabled:opacity-50"
+                title="Langsung kosongkan dan tulis ulang tabel Supabase dengan data hasil tarikan ini"
+              >
+                <i className="fa-solid fa-cloud-arrow-up text-xs"></i>
+                <span>Unggah Hasil Tarikan ke Supabase (Replace)</span>
+              </button>
             )}
-          </button>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {supabaseConfig.url && supabaseConfig.anonKey && (
+              <label className="hidden sm:flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={alsoSyncToSupabase}
+                  onChange={(e) => setAlsoSyncToSupabase(e.target.checked)}
+                  className="rounded text-emerald-600 focus:ring-0 cursor-pointer"
+                />
+                <span>Juga sinkronkan ke Supabase</span>
+              </label>
+            )}
+
+            <button
+              type="button"
+              onClick={handleApplyToDatabase}
+              disabled={isApplying || !previewData || !previewData.parsedEmployees.length}
+              className="btn-navy px-6 py-2 rounded-xl text-xs sm:text-sm font-bold flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50 hover:opacity-95 transition"
+            >
+              {isApplying ? (
+                <>
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
+                  <span>Menerapkan Sinkronisasi...</span>
+                </>
+              ) : (
+                <>
+                  <i className="fa-solid fa-check text-xs"></i>
+                  <span>Terapkan Data ke Database ({previewData?.totalRows || 0})</span>
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

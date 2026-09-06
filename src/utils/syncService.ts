@@ -1269,10 +1269,15 @@ export async function fetchSupabaseEmployees(
 
 export type SyncProgressCallback = (current: number, total: number, percentage: number, batchInfo?: string) => void;
 
+export interface PushOptions {
+  mode?: 'upsert' | 'replace';
+}
+
 export async function pushEmployeesToSupabase(
   config: SupabaseConfig,
   employees: Employee[],
-  onProgress?: SyncProgressCallback
+  onProgress?: SyncProgressCallback,
+  options?: PushOptions
 ): Promise<SyncResponse> {
   const test = await testSupabaseConnection(config);
   if (!test.success) {
@@ -1281,66 +1286,138 @@ export async function pushEmployeesToSupabase(
 
   const tableName = config.tableName.trim() || 'employees_multi_skill';
   const cleanUrl = config.url.trim().replace(/\/+$/, '');
+  const mode = options?.mode || 'upsert';
 
-  // Format records for Supabase schema
+  // Format records strictly for Supabase schema with correct numeric and null handling
   const payload = employees.map((e) => ({
-    emp_id: e.empId,
-    emp_name: e.empName,
-    divisi: e.divisi || null,
-    department: e.department || null,
-    section: e.section || null,
-    grade: e.grade || null,
-    job_grade: e.jobGrade || null,
-    jabatan: e.jabatan || null,
-    gender: e.gender || 'L',
-    tanggal_pensiun: e.tanggalPensiun || null,
-    pic: e.pic || null,
-    tahun: e.tahun,
-    bulan: e.bulan,
-    job_category: e.jobCategory || null,
-    total_score: e.totalScore || 0,
-    standard: e.standard || null,
-    result: e.result || 'US',
-    gap: e.gap || 0,
-    skills: e.skills || {},
+    emp_id: String(e.empId || '').trim(),
+    emp_name: String(e.empName || '').trim(),
+    divisi: e.divisi ? String(e.divisi).trim() : null,
+    department: e.department ? String(e.department).trim() : null,
+    section: e.section ? String(e.section).trim() : null,
+    grade: e.grade ? String(e.grade).trim() : null,
+    job_grade: e.jobGrade ? String(e.jobGrade).trim() : null,
+    jabatan: e.jabatan ? String(e.jabatan).trim() : null,
+    gender: e.gender ? String(e.gender).trim() : 'L',
+    tanggal_pensiun: e.tanggalPensiun ? String(e.tanggalPensiun).trim() : null,
+    pic: e.pic ? String(e.pic).trim() : null,
+    tahun: Number(e.tahun) || new Date().getFullYear(),
+    bulan: Number(e.bulan) || (new Date().getMonth() + 1),
+    job_category: e.jobCategory ? String(e.jobCategory).trim() : null,
+    total_score: Number(e.totalScore) || 0,
+    standard: (e.standard !== null && e.standard !== undefined && !isNaN(Number(e.standard))) ? Number(e.standard) : null,
+    result: (e.result && String(e.result).toUpperCase().includes('MS')) ? 'MS' : 'US',
+    gap: Number(e.gap) || 0,
+    skills: (e.skills && typeof e.skills === 'object') ? e.skills : {},
     updated_at: new Date().toISOString()
   }));
 
-  const CHUNK_SIZE = 50;
+  const CHUNK_SIZE = 100;
   const totalRecords = payload.length;
   const totalBatches = Math.ceil(totalRecords / CHUNK_SIZE);
   const client = getSupabaseClient(config);
 
   try {
+    // If replace mode, wipe existing records first to guarantee clean update
+    if (mode === 'replace') {
+      if (onProgress) {
+        onProgress(0, totalRecords, 0, 'Mengosongkan tabel Supabase untuk mode Ganti Bersih (Clean Replace)...');
+      }
+      if (client) {
+        const { error: delErr } = await client
+          .from(tableName)
+          .delete()
+          .neq('emp_id', '___MSM_EMPTY_GUARD___');
+        if (delErr) {
+          console.warn('[Supabase Replace] Filter neq warning, trying alternative delete filter:', delErr.message);
+          await client.from(tableName).delete().gt('id', 0);
+        }
+      } else {
+        await fetch(`${cleanUrl}/rest/v1/${tableName}?emp_id=neq.___MSM_EMPTY_GUARD___`, {
+          method: 'DELETE',
+          headers: {
+            'apikey': config.anonKey,
+            'Authorization': `Bearer ${config.anonKey}`,
+            'Prefer': 'return=minimal'
+          }
+        });
+      }
+    }
+
     for (let i = 0; i < totalBatches; i++) {
       const start = i * CHUNK_SIZE;
       const end = Math.min(start + CHUNK_SIZE, totalRecords);
       const chunk = payload.slice(start, end);
 
       if (client) {
-        // Upsert on conflict (emp_id, tahun, bulan)
-        const { error } = await client
-          .from(tableName)
-          .upsert(chunk, {
-            onConflict: 'emp_id,tahun,bulan',
-            ignoreDuplicates: false
-          });
+        if (mode === 'replace') {
+          // In replace mode, simple insert is faster and requires no unique constraint
+          const { error: insertErr } = await client.from(tableName).insert(chunk);
+          if (insertErr) {
+            return {
+              success: false,
+              message: `Gagal menyisipkan batch ${i + 1}/${totalBatches} (Insert): ${insertErr.message}`
+            };
+          }
+        } else {
+          // Upsert mode with automatic constraint error recovery
+          let { error } = await client
+            .from(tableName)
+            .upsert(chunk, {
+              onConflict: 'emp_id,tahun,bulan',
+              ignoreDuplicates: false
+            });
 
-        if (error) {
-          return {
-            success: false,
-            message: `Gagal mengirim batch ${i + 1}/${totalBatches}: ${error.message}`
-          };
+          if (error) {
+            const errMsg = error.message || '';
+            if (
+              errMsg.includes('unique or exclusion constraint') ||
+              errMsg.includes('ON CONFLICT DO UPDATE') ||
+              error.code === '42P10'
+            ) {
+              console.warn('[Supabase Upsert] Constraint unique (emp_id, tahun, bulan) tidak terdefinisi di Supabase. Mencoba fallback upsert onConflict: emp_id...');
+              const fbUpsert = await client
+                .from(tableName)
+                .upsert(chunk, {
+                  onConflict: 'emp_id',
+                  ignoreDuplicates: false
+                });
+
+              if (!fbUpsert.error) {
+                error = null;
+              } else {
+                console.warn('[Supabase Upsert] Fallback onConflict emp_id juga tidak tersedia. Mencoba insert biasa...');
+                const fbInsert = await client.from(tableName).insert(chunk);
+                if (!fbInsert.error) {
+                  error = null;
+                } else {
+                  return {
+                    success: false,
+                    message: `Gagal mengirim batch ${i + 1}/${totalBatches}: ${error.message}. Saran: Jalankan skrip SQL DDL di menu SQL Editor Supabase untuk menambahkan CONSTRAINT unique_emp_period UNIQUE (emp_id, tahun, bulan).`
+                  };
+                }
+              }
+            } else {
+              return {
+                success: false,
+                message: `Gagal mengirim batch ${i + 1}/${totalBatches}: ${error.message}`
+              };
+            }
+          }
         }
       } else {
-        // Fallback REST POST with Prefer: resolution=merge-duplicates
-        const res = await fetch(`${cleanUrl}/rest/v1/${tableName}`, {
+        // Fallback REST POST with proper on_conflict URL parameter
+        const endpoint = mode === 'replace'
+          ? `${cleanUrl}/rest/v1/${tableName}`
+          : `${cleanUrl}/rest/v1/${tableName}?on_conflict=emp_id,tahun,bulan`;
+
+        const res = await fetch(endpoint, {
           method: 'POST',
           headers: {
             'apikey': config.anonKey,
             'Authorization': `Bearer ${config.anonKey}`,
             'Content-Type': 'application/json',
-            'Prefer': 'resolution=merge-duplicates'
+            'Prefer': mode === 'replace' ? 'return=minimal' : 'resolution=merge-duplicates'
           },
           body: JSON.stringify(chunk)
         });
@@ -1357,13 +1434,18 @@ export async function pushEmployeesToSupabase(
       const currentCount = end;
       const pct = Math.round((currentCount / totalRecords) * 100);
       if (onProgress) {
-        onProgress(currentCount, totalRecords, pct, `Batch ${i + 1}/${totalBatches} (${currentCount}/${totalRecords} data)`);
+        onProgress(
+          currentCount,
+          totalRecords,
+          pct,
+          `Batch ${i + 1}/${totalBatches} (${currentCount}/${totalRecords} data - Mode: ${mode === 'replace' ? 'Ganti Bersih' : 'Upsert'})`
+        );
       }
     }
 
     return {
       success: true,
-      message: `Berhasil mensinkronkan ${employees.length} data karyawan ke tabel Supabase "${tableName}".`,
+      message: `Berhasil ${mode === 'replace' ? 'menggantikan seluruh' : 'mensinkronkan'} ${employees.length} data karyawan ke tabel Supabase "${tableName}".`,
       count: employees.length,
       syncedBatches: totalBatches,
       totalBatches
@@ -1513,7 +1595,8 @@ export async function syncGoogleSheetsDirectToSupabase(
   sheetUrl: string,
   config: SupabaseConfig,
   currentEmployees: Employee[] = [],
-  onProgress?: SyncProgressCallback
+  onProgress?: SyncProgressCallback,
+  options?: PushOptions
 ): Promise<SyncResponse<Employee[]>> {
   // 1. Fetch from Google Sheet
   const sheetResult = await fetchGoogleSheetData(sheetUrl, currentEmployees);
@@ -1525,9 +1608,10 @@ export async function syncGoogleSheetsDirectToSupabase(
   }
 
   const fetchedEmployees = sheetResult.data;
+  const mode = options?.mode || 'upsert';
 
-  // 2. Push to Supabase with progress
-  const pushResult = await pushEmployeesToSupabase(config, fetchedEmployees, onProgress);
+  // 2. Push to Supabase with progress and mode
+  const pushResult = await pushEmployeesToSupabase(config, fetchedEmployees, onProgress, options);
   if (!pushResult.success) {
     return {
       success: false,
@@ -1537,7 +1621,7 @@ export async function syncGoogleSheetsDirectToSupabase(
 
   return {
     success: true,
-    message: `Sukses sinkronisasi langsung! ${fetchedEmployees.length} data karyawan dari Google Sheets berhasil disimpan ke tabel Supabase "${config.tableName}".`,
+    message: `Sukses sinkronisasi langsung! ${fetchedEmployees.length} data karyawan dari Google Sheets berhasil disimpan ke tabel Supabase "${config.tableName}" (Mode: ${mode === 'replace' ? 'Ganti Bersih' : 'Upsert'}).`,
     data: fetchedEmployees,
     count: fetchedEmployees.length,
     preview: sheetResult.preview
