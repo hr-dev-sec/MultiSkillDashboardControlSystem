@@ -74,8 +74,11 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
   onShowToast,
   isDarkMode = false
 }) => {
-  const [users, setUsers] = useState<UserAccount[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const [users, setUsers] = useState<UserAccount[]>(() => {
+    const cached = getStoredUsers();
+    return cached.length > 0 ? cached : INITIAL_USERS;
+  });
+  const [loading, setLoading] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [filterRole, setFilterRole] = useState<string>('ALL');
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
@@ -371,9 +374,11 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
     toast('Konfigurasi Cloud Supabase & Google Sheets berhasil disimpan.');
   };
 
-  // Load Users from Server Database (with local fallback)
-  const loadUsersList = async () => {
-    setLoading(true);
+  // Load Users from Server Database (with local fallback and silent background sync)
+  const loadUsersList = async (showSpinner = false) => {
+    if (showSpinner) {
+      setLoading(true);
+    }
     try {
       const serverUsers = await fetchAllMasterUsers();
       if (serverUsers && serverUsers.length > 0) {
@@ -381,18 +386,18 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
         saveStoredUsers(serverUsers);
       } else {
         const local = getStoredUsers();
-        setUsers(local);
+        if (local.length > 0) setUsers(local);
       }
     } catch (err) {
       const local = getStoredUsers();
-      setUsers(local);
+      if (local.length > 0) setUsers(local);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadUsersList();
+    loadUsersList(false);
   }, []);
 
   // Filtered Users

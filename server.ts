@@ -611,7 +611,7 @@ async function startServer() {
 
       if (!response.ok) {
         const errorText = await response.text();
-        // Fallback: If composite onConflict emp_id,tahun,bulan fails due to missing constraint, try onConflict: emp_id
+        // Fallback 1: If composite onConflict emp_id,tahun,bulan fails due to missing constraint, try onConflict: emp_id
         if (mode !== 'replace' && (errorText.includes('unique') || errorText.includes('constraint') || errorText.includes('ON CONFLICT') || response.status === 400 || response.status === 409)) {
           const fbResponse = await fetch(`${cleanUrl}/rest/v1/${cleanTable}?on_conflict=emp_id`, {
             method: 'POST',
@@ -625,6 +625,21 @@ async function startServer() {
           });
           if (fbResponse.ok) {
             return res.json({ success: true, count: records.length, note: 'Fallback onConflict emp_id sukses' });
+          }
+
+          // Fallback 2: Direct insert (skip duplicates or plain insert)
+          const insertResponse = await fetch(`${cleanUrl}/rest/v1/${cleanTable}`, {
+            method: 'POST',
+            headers: {
+              'apikey': anonKey,
+              'Authorization': `Bearer ${anonKey}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'return=minimal'
+            },
+            body: JSON.stringify(records)
+          });
+          if (insertResponse.ok) {
+            return res.json({ success: true, count: records.length, note: 'Fallback direct insert sukses' });
           }
         }
         return res.status(response.status).json({ success: false, message: `Supabase error (${response.status}): ${errorText}` });
@@ -688,13 +703,10 @@ async function startServer() {
         'users_accounts',
         'user_accounts',
         'users'
-      ])).filter(Boolean);
+      ])).filter(Boolean) as string[];
 
-      let foundUsers: any[] | null = null;
-      let usedTable = '';
-      let lastError = '';
-
-      for (const t of candidateTables) {
+      // Parallel query all candidate tables to eliminate sequential multi-second network delay!
+      const promises = candidateTables.map(async (t) => {
         try {
           const resp = await fetch(`${cleanUrl}/rest/v1/${t}?select=*`, {
             method: 'GET',
@@ -708,31 +720,29 @@ async function startServer() {
           if (resp.ok) {
             const data = await resp.json();
             if (Array.isArray(data)) {
-              foundUsers = data;
-              usedTable = t;
-              break;
+              return { table: t, data };
             }
-          } else {
-            const errTxt = await resp.text();
-            lastError = `Tabel ${t}: ${errTxt}`;
           }
-        } catch (e: any) {
-          lastError = e?.message || 'Gagal koneksi';
-        }
-      }
+        } catch (_) {}
+        return null;
+      });
 
-      if (!foundUsers) {
+      const results = await Promise.all(promises);
+      // Prioritize table with records, or any table that responded successfully
+      const found = results.find((r) => r && r.data && r.data.length > 0) || results.find((r) => r && r.data);
+
+      if (!found) {
         return res.status(404).json({
           success: false,
-          message: `Tidak ditemukan tabel akun pengguna di Supabase. Tabel yang dicoba: ${candidateTables.join(', ')}. Detail: ${lastError}`
+          message: `Tidak ditemukan tabel akun pengguna di Supabase. Tabel yang dicoba: ${candidateTables.join(', ')}.`
         });
       }
 
       return res.json({
         success: true,
-        tableName: usedTable,
-        users: foundUsers,
-        message: `Berhasil memuat ${foundUsers.length} akun pengguna dari tabel Supabase "${usedTable}".`
+        tableName: found.table,
+        users: found.data,
+        message: `Berhasil memuat ${found.data.length} akun pengguna dari tabel Supabase "${found.table}".`
       });
     } catch (err: any) {
       return res.status(500).json({ success: false, message: err?.message || 'Gagal memuat akun pengguna dari Supabase.' });

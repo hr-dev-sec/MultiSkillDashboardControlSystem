@@ -71,6 +71,22 @@ export function getSupabaseConfig(): SupabaseConfig {
   };
 }
 
+/**
+ * Safely parse fetch response without throwing "Failed to execute 'json' on 'Response': Unexpected end of JSON input"
+ */
+async function safeParseFetchResponse<T = any>(res: Response): Promise<{ ok: boolean; data: T | null; text: string }> {
+  try {
+    const text = await res.text();
+    if (!text || !text.trim()) {
+      return { ok: res.ok, data: null, text: '' };
+    }
+    const data = JSON.parse(text);
+    return { ok: res.ok, data, text };
+  } catch (_) {
+    return { ok: false, data: null, text: '' };
+  }
+}
+
 export function saveSupabaseConfig(config: SupabaseConfig): void {
   try {
     cachedClient = null;
@@ -1373,127 +1389,140 @@ export async function pushEmployeesToSupabase(
       let batchSuccess = false;
       let batchErrorMessage = '';
 
-      // 1. First attempt: Direct client execution
-      if (client) {
-        try {
-          if (mode === 'replace') {
-            const { error: insertErr } = await client.from(tableName).insert(chunk);
-            if (!insertErr) {
-              batchSuccess = true;
-            } else {
-              batchErrorMessage = insertErr.message || 'Insert error';
-            }
-          } else {
-            let { error } = await client
-              .from(tableName)
-              .upsert(chunk, {
-                onConflict: 'emp_id,tahun,bulan',
-                ignoreDuplicates: false
-              });
-
-            if (!error) {
-              batchSuccess = true;
-            } else {
-              const errMsg = error.message || '';
-              if (
-                errMsg.includes('unique or exclusion constraint') ||
-                errMsg.includes('ON CONFLICT DO UPDATE') ||
-                error.code === '42P10'
-              ) {
-                console.warn('[Supabase Upsert] Fallback upsert onConflict: emp_id...');
-                const fbUpsert = await client
-                  .from(tableName)
-                  .upsert(chunk, {
-                    onConflict: 'emp_id',
-                    ignoreDuplicates: false
-                  });
-
-                if (!fbUpsert.error) {
-                  batchSuccess = true;
-                } else {
-                  console.warn('[Supabase Upsert] Fallback insert biasa...');
-                  const fbInsert = await client.from(tableName).insert(chunk);
-                  if (!fbInsert.error) {
-                    batchSuccess = true;
-                  } else {
-                    batchErrorMessage = fbInsert.error.message || errMsg;
-                  }
-                }
+      // Up to 3 attempts per batch to handle transient network hiccups/rate limits safely
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        // 1. First attempt: Direct client execution
+        if (client) {
+          try {
+            if (mode === 'replace') {
+              const { error: insertErr } = await client.from(tableName).insert(chunk);
+              if (!insertErr) {
+                batchSuccess = true;
+                break;
               } else {
-                batchErrorMessage = errMsg;
+                batchErrorMessage = insertErr.message || 'Insert error';
+              }
+            } else {
+              let { error } = await client
+                .from(tableName)
+                .upsert(chunk, {
+                  onConflict: 'emp_id,tahun,bulan',
+                  ignoreDuplicates: false
+                });
+
+              if (!error) {
+                batchSuccess = true;
+                break;
+              } else {
+                const errMsg = error.message || '';
+                if (
+                  errMsg.includes('unique or exclusion constraint') ||
+                  errMsg.includes('ON CONFLICT DO UPDATE') ||
+                  error.code === '42P10'
+                ) {
+                  const fbUpsert = await client
+                    .from(tableName)
+                    .upsert(chunk, {
+                      onConflict: 'emp_id',
+                      ignoreDuplicates: false
+                    });
+
+                  if (!fbUpsert.error) {
+                    batchSuccess = true;
+                    break;
+                  } else {
+                    const fbInsert = await client.from(tableName).insert(chunk);
+                    if (!fbInsert.error) {
+                      batchSuccess = true;
+                      break;
+                    } else {
+                      batchErrorMessage = fbInsert.error.message || errMsg;
+                    }
+                  }
+                } else {
+                  batchErrorMessage = errMsg;
+                }
               }
             }
+          } catch (clientEx: any) {
+            batchErrorMessage = clientEx?.message || 'Client network error';
           }
-        } catch (clientEx: any) {
-          batchErrorMessage = clientEx?.message || 'Client network error';
         }
-      }
 
-      // 2. Automatic Server-Side Proxy Fallback:
-      // If direct browser push failed (e.g. "TypeError: Failed to fetch", CORS, ad-blocker, or network timeout),
-      // route this batch through the Express backend proxy on port 3000!
-      if (!batchSuccess) {
-        try {
-          const proxyResp = await fetch('/api/supabase/push-batch', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              url: config.url,
-              anonKey: config.anonKey,
-              tableName,
-              records: chunk,
-              mode
-            })
-          });
-
-          if (proxyResp.ok) {
-            const proxyResult = await proxyResp.json();
-            if (proxyResult.success) {
-              batchSuccess = true;
-            } else {
-              batchErrorMessage = proxyResult.message || batchErrorMessage;
-            }
-          } else {
-            const errTxt = await proxyResp.text();
-            batchErrorMessage = `Proxy server error (HTTP ${proxyResp.status}): ${errTxt}`;
-          }
-        } catch (proxyEx: any) {
-          console.warn('[SyncService] Fallback server proxy error:', proxyEx);
-        }
-      }
-
-      // 3. If still unsuccessful, attempt sub-batching with smaller micro-chunks (10 items each)
-      if (!batchSuccess && chunk.length > 10) {
-        const microChunkSize = 10;
-        let allMicroSuccess = true;
-        for (let m = 0; m < chunk.length; m += microChunkSize) {
-          const micro = chunk.slice(m, m + microChunkSize);
+        // 2. Automatic Server-Side Proxy Fallback:
+        // Route this batch through the Express backend proxy on port 3000
+        if (!batchSuccess) {
           try {
-            const microResp = await fetch('/api/supabase/push-batch', {
+            const proxyResp = await fetch('/api/supabase/push-batch', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 url: config.url,
                 anonKey: config.anonKey,
                 tableName,
-                records: micro,
+                records: chunk,
                 mode
               })
             });
-            const microData = await microResp.json();
-            if (!microData.success) {
+
+            const parsed = await safeParseFetchResponse(proxyResp);
+            if (parsed.ok && parsed.data?.success) {
+              batchSuccess = true;
+              break;
+            } else if (parsed.data?.message) {
+              batchErrorMessage = parsed.data.message;
+            } else if (parsed.text) {
+              batchErrorMessage = `Proxy server error (HTTP ${proxyResp.status}): ${parsed.text}`;
+            } else {
+              batchErrorMessage = `Proxy server error (HTTP ${proxyResp.status})`;
+            }
+          } catch (proxyEx: any) {
+            batchErrorMessage = proxyEx?.message || 'Fallback server proxy error';
+          }
+        }
+
+        // 3. If still unsuccessful, attempt sub-batching with smaller micro-chunks (10 items each)
+        if (!batchSuccess && chunk.length > 10) {
+          const microChunkSize = 10;
+          let allMicroSuccess = true;
+          for (let m = 0; m < chunk.length; m += microChunkSize) {
+            const micro = chunk.slice(m, m + microChunkSize);
+            try {
+              const microResp = await fetch('/api/supabase/push-batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  url: config.url,
+                  anonKey: config.anonKey,
+                  tableName,
+                  records: micro,
+                  mode
+                })
+              });
+              const microParsed = await safeParseFetchResponse(microResp);
+              if (!microParsed.ok || !microParsed.data?.success) {
+                allMicroSuccess = false;
+                batchErrorMessage = microParsed.data?.message || microParsed.text || 'Micro-batch gagal disisipkan';
+                break;
+              }
+            } catch (mErr: any) {
               allMicroSuccess = false;
-              batchErrorMessage = microData.message || 'Micro-batch gagal disisipkan';
+              batchErrorMessage = mErr?.message || 'Micro-batch network failure';
               break;
             }
-          } catch (mErr: any) {
-            allMicroSuccess = false;
-            batchErrorMessage = mErr?.message || 'Micro-batch network failure';
+          }
+          if (allMicroSuccess) {
+            batchSuccess = true;
             break;
           }
         }
-        if (allMicroSuccess) {
-          batchSuccess = true;
+
+        // If batch succeeded, exit attempt loop
+        if (batchSuccess) break;
+
+        // If attempt failed, wait briefly before retrying
+        if (attempt < 3) {
+          await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
         }
       }
 
@@ -1502,6 +1531,11 @@ export async function pushEmployeesToSupabase(
           success: false,
           message: `Gagal mengirim batch ${i + 1}/${totalBatches}: ${batchErrorMessage}`
         };
+      }
+
+      // Gentle pause between batches to prevent socket resets and Cloudflare/PostgREST rate-limiting
+      if (i < totalBatches - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 40));
       }
 
       const currentCount = end;
@@ -2304,13 +2338,13 @@ export async function testSupabaseUsersTable(config: SupabaseConfig): Promise<{ 
         tableName: config.usersTableName || 'system_users'
       })
     });
-    const data = await res.json();
-    if (data.success) {
+    const parsed = await safeParseFetchResponse(res);
+    if (parsed.ok && parsed.data?.success) {
       return {
         success: true,
-        message: `Tabel "${data.tableName}" terhubung via server proxy!`,
-        count: (data.users || []).length,
-        tableName: data.tableName
+        message: `Tabel "${parsed.data.tableName}" terhubung via server proxy!`,
+        count: (parsed.data.users || []).length,
+        tableName: parsed.data.tableName
       };
     }
   } catch (_) {}
@@ -2329,58 +2363,59 @@ export async function fetchSupabaseUsers(config: SupabaseConfig): Promise<{ succ
     return { success: false, message: 'Supabase belum dikonfigurasi.', users: [] };
   }
 
-  const tablesToTry = Array.from(new Set([
-    config.usersTableName?.trim(),
-    'system_users',
-    'users_accounts',
-    'user_accounts',
-    'users'
-  ])).filter(Boolean) as string[];
-
-  const client = getSupabaseClient(config);
+  const cleanTableName = config.usersTableName?.trim() || 'system_users';
   let rawUsers: any[] | null = null;
   let activeTable = '';
   let lastErrorMsg = '';
 
-  // 1. Try client queries across candidate tables
-  if (client) {
-    for (const table of tablesToTry) {
-      try {
-        const { data, error } = await client.from(table).select('*');
-        if (!error && Array.isArray(data)) {
-          rawUsers = data;
-          activeTable = table;
-          break;
-        } else if (error) {
-          lastErrorMsg = `Tabel ${table}: ${error.message}`;
-        }
-      } catch (clientErr: any) {
-        lastErrorMsg = clientErr?.message || 'Network error';
-      }
+  // 1. High-Speed Server Proxy Lookup: Executes candidate table checks in parallel in ~150ms with zero CORS delay
+  try {
+    const resp = await fetch('/api/supabase/users/fetch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: config.url,
+        anonKey: config.anonKey,
+        tableName: cleanTableName
+      })
+    });
+    const parsed = await safeParseFetchResponse(resp);
+    if (parsed.ok && parsed.data?.success && Array.isArray(parsed.data.users)) {
+      rawUsers = parsed.data.users;
+      activeTable = parsed.data.tableName || cleanTableName;
+    } else if (parsed.data?.message) {
+      lastErrorMsg = parsed.data.message;
     }
+  } catch (proxyErr: any) {
+    // Fall back to client lookup below
   }
 
-  // 2. If client failed or encountered TypeError: Failed to fetch, use server proxy
+  // 2. Direct client fallback if server proxy was unavailable
   if (!rawUsers) {
-    try {
-      const resp = await fetch('/api/supabase/users/fetch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          url: config.url,
-          anonKey: config.anonKey,
-          tableName: config.usersTableName || 'system_users'
-        })
-      });
-      const resData = await resp.json();
-      if (resData.success && Array.isArray(resData.users)) {
-        rawUsers = resData.users;
-        activeTable = resData.tableName || 'system_users';
-      } else {
-        lastErrorMsg = resData.message || lastErrorMsg;
+    const tablesToTry = Array.from(new Set([
+      cleanTableName,
+      'system_users',
+      'users_accounts',
+      'user_accounts',
+      'users'
+    ])).filter(Boolean) as string[];
+
+    const client = getSupabaseClient(config);
+    if (client) {
+      for (const table of tablesToTry) {
+        try {
+          const { data, error } = await client.from(table).select('*');
+          if (!error && Array.isArray(data)) {
+            rawUsers = data;
+            activeTable = table;
+            break;
+          } else if (error) {
+            lastErrorMsg = `Tabel ${table}: ${error.message}`;
+          }
+        } catch (clientErr: any) {
+          lastErrorMsg = clientErr?.message || 'Network error';
+        }
       }
-    } catch (proxyErr: any) {
-      console.warn('[SyncService] Proxy fetch users error:', proxyErr);
     }
   }
 
