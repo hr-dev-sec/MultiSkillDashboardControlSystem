@@ -286,13 +286,29 @@ export async function syncSystemFromBackend(): Promise<{ users: UserAccount[]; c
   let syncedUsers: UserAccount[] = [];
   let systemConfig: SystemConfig | undefined;
 
+  const mergeWithExistingUsers = (newUsers: UserAccount[]): UserAccount[] => {
+    const userMap = new Map<string, UserAccount>();
+    // 1. Initial base accounts
+    INITIAL_USERS.forEach((u) => userMap.set(u.username.trim().toLowerCase(), u));
+    // 2. Existing stored users
+    getStoredUsers().forEach((u) => userMap.set(u.username.trim().toLowerCase(), u));
+    // 3. New incoming users (Supabase / server DB)
+    newUsers.forEach((u) => {
+      const key = u.username.trim().toLowerCase();
+      if (key) {
+        userMap.set(key, { ...(userMap.get(key) || {}), ...u });
+      }
+    });
+    return Array.from(userMap.values());
+  };
+
   // 1. Check Supabase first for absolute cloud persistence across browsers/sessions
   try {
     const sbConfig = getSupabaseConfig();
     if (sbConfig && sbConfig.url && sbConfig.anonKey) {
       const sbUsersRes = await fetchSupabaseUsers(sbConfig);
       if (sbUsersRes.success && sbUsersRes.users && sbUsersRes.users.length > 0) {
-        syncedUsers = sbUsersRes.users;
+        syncedUsers = mergeWithExistingUsers(sbUsersRes.users);
         saveStoredUsers(syncedUsers);
       }
     }
@@ -317,7 +333,7 @@ export async function syncSystemFromBackend(): Promise<{ users: UserAccount[]; c
           // Auto-fetch users directly from Supabase using server-persisted credentials
           const sbUsersRes = await fetchSupabaseUsers(initData.config.supabaseConfig);
           if (sbUsersRes.success && sbUsersRes.users && sbUsersRes.users.length > 0) {
-            syncedUsers = sbUsersRes.users;
+            syncedUsers = mergeWithExistingUsers(sbUsersRes.users);
             saveStoredUsers(syncedUsers);
           }
         }
@@ -329,13 +345,14 @@ export async function syncSystemFromBackend(): Promise<{ users: UserAccount[]; c
           body: JSON.stringify({
             url: localSb.url,
             anonKey: localSb.anonKey,
-            tableName: localSb.tableName || 'employees_multi_skill'
+            tableName: localSb.tableName || 'employees_multi_skill',
+            usersTableName: localSb.usersTableName || 'system_users'
           })
         }).catch(() => {});
       }
 
       if (syncedUsers.length === 0 && initData.users && initData.users.length > 0) {
-        syncedUsers = initData.users;
+        syncedUsers = mergeWithExistingUsers(initData.users);
         saveStoredUsers(syncedUsers);
       }
     }

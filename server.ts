@@ -565,7 +565,8 @@ async function startServer() {
       const updatedSupabaseConfig = {
         url: (url !== undefined ? url : currentConfig.supabaseConfig?.url || '').trim(),
         anonKey: (anonKey !== undefined ? anonKey : currentConfig.supabaseConfig?.anonKey || '').trim(),
-        tableName: (tableName !== undefined ? tableName : currentConfig.supabaseConfig?.tableName || 'employees_multi_skill').trim()
+        tableName: (tableName !== undefined ? tableName : currentConfig.supabaseConfig?.tableName || 'employees_multi_skill').trim(),
+        usersTableName: (req.body.usersTableName !== undefined ? req.body.usersTableName : (currentConfig.supabaseConfig as any)?.usersTableName || 'system_users').trim()
       };
       const result = updateSystemConfig(
         { supabaseConfig: updatedSupabaseConfig },
@@ -579,6 +580,200 @@ async function startServer() {
       });
     } catch (err: any) {
       res.status(500).json({ success: false, message: 'Gagal menyimpan konfigurasi Supabase ke database server.' });
+    }
+  });
+
+  // Server-Side Supabase Proxy: Push Batch (Solves browser "TypeError: Failed to fetch" and CORS/payload limits)
+  app.post('/api/supabase/push-batch', async (req, res) => {
+    try {
+      const { url, anonKey, tableName, records, mode } = req.body || {};
+      if (!url || !anonKey || !tableName || !Array.isArray(records) || records.length === 0) {
+        return res.status(400).json({ success: false, message: 'Parameter URL, anonKey, tableName, dan records (array) wajib diisi.' });
+      }
+
+      const cleanUrl = url.trim().replace(/\/+$/, '');
+      const cleanTable = tableName.trim();
+
+      const endpoint = mode === 'replace'
+        ? `${cleanUrl}/rest/v1/${cleanTable}`
+        : `${cleanUrl}/rest/v1/${cleanTable}?on_conflict=emp_id,tahun,bulan`;
+
+      let response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'apikey': anonKey,
+          'Authorization': `Bearer ${anonKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': mode === 'replace' ? 'return=minimal' : 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify(records)
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        // Fallback: If composite onConflict emp_id,tahun,bulan fails due to missing constraint, try onConflict: emp_id
+        if (mode !== 'replace' && (errorText.includes('unique') || errorText.includes('constraint') || errorText.includes('ON CONFLICT') || response.status === 400 || response.status === 409)) {
+          const fbResponse = await fetch(`${cleanUrl}/rest/v1/${cleanTable}?on_conflict=emp_id`, {
+            method: 'POST',
+            headers: {
+              'apikey': anonKey,
+              'Authorization': `Bearer ${anonKey}`,
+              'Content-Type': 'application/json',
+              'Prefer': 'resolution=merge-duplicates'
+            },
+            body: JSON.stringify(records)
+          });
+          if (fbResponse.ok) {
+            return res.json({ success: true, count: records.length, note: 'Fallback onConflict emp_id sukses' });
+          }
+        }
+        return res.status(response.status).json({ success: false, message: `Supabase error (${response.status}): ${errorText}` });
+      }
+
+      return res.json({ success: true, count: records.length });
+    } catch (err: any) {
+      console.error('[Supabase Server Proxy] Push error:', err);
+      return res.status(500).json({ success: false, message: `Server proxy Supabase gagal: ${err?.message || 'Network error'}` });
+    }
+  });
+
+  // Server-Side Supabase Proxy: Clear / Delete Table
+  app.post('/api/supabase/delete-table', async (req, res) => {
+    try {
+      const { url, anonKey, tableName } = req.body || {};
+      if (!url || !anonKey || !tableName) {
+        return res.status(400).json({ success: false, message: 'URL, anonKey, dan tableName wajib diisi.' });
+      }
+
+      const cleanUrl = url.trim().replace(/\/+$/, '');
+      const response = await fetch(`${cleanUrl}/rest/v1/${tableName}?emp_id=neq.___MSM_EMPTY_GUARD___`, {
+        method: 'DELETE',
+        headers: {
+          'apikey': anonKey,
+          'Authorization': `Bearer ${anonKey}`,
+          'Prefer': 'return=minimal'
+        }
+      });
+
+      if (!response.ok) {
+        // Fallback delete with id filter
+        await fetch(`${cleanUrl}/rest/v1/${tableName}?id=gt.0`, {
+          method: 'DELETE',
+          headers: {
+            'apikey': anonKey,
+            'Authorization': `Bearer ${anonKey}`,
+            'Prefer': 'return=minimal'
+          }
+        });
+      }
+
+      return res.json({ success: true, message: 'Tabel berhasil dibersihkan via server proxy.' });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err?.message || 'Gagal menghapus data tabel via proxy.' });
+    }
+  });
+
+  // Server-Side Supabase Proxy: Fetch Users (auto-detects system_users, users_accounts, user_accounts, users)
+  app.post('/api/supabase/users/fetch', async (req, res) => {
+    try {
+      const { url, anonKey, tableName } = req.body || {};
+      if (!url || !anonKey) {
+        return res.status(400).json({ success: false, message: 'URL dan anonKey wajib diisi.' });
+      }
+
+      const cleanUrl = url.trim().replace(/\/+$/, '');
+      const candidateTables = Array.from(new Set([
+        tableName,
+        'system_users',
+        'users_accounts',
+        'user_accounts',
+        'users'
+      ])).filter(Boolean);
+
+      let foundUsers: any[] | null = null;
+      let usedTable = '';
+      let lastError = '';
+
+      for (const t of candidateTables) {
+        try {
+          const resp = await fetch(`${cleanUrl}/rest/v1/${t}?select=*`, {
+            method: 'GET',
+            headers: {
+              'apikey': anonKey,
+              'Authorization': `Bearer ${anonKey}`,
+              'Accept': 'application/json'
+            }
+          });
+
+          if (resp.ok) {
+            const data = await resp.json();
+            if (Array.isArray(data)) {
+              foundUsers = data;
+              usedTable = t;
+              break;
+            }
+          } else {
+            const errTxt = await resp.text();
+            lastError = `Tabel ${t}: ${errTxt}`;
+          }
+        } catch (e: any) {
+          lastError = e?.message || 'Gagal koneksi';
+        }
+      }
+
+      if (!foundUsers) {
+        return res.status(404).json({
+          success: false,
+          message: `Tidak ditemukan tabel akun pengguna di Supabase. Tabel yang dicoba: ${candidateTables.join(', ')}. Detail: ${lastError}`
+        });
+      }
+
+      return res.json({
+        success: true,
+        tableName: usedTable,
+        users: foundUsers,
+        message: `Berhasil memuat ${foundUsers.length} akun pengguna dari tabel Supabase "${usedTable}".`
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err?.message || 'Gagal memuat akun pengguna dari Supabase.' });
+    }
+  });
+
+  // Server-Side Supabase Proxy: Push Users
+  app.post('/api/supabase/users/push', async (req, res) => {
+    try {
+      const { url, anonKey, tableName, users } = req.body || {};
+      if (!url || !anonKey || !Array.isArray(users) || users.length === 0) {
+        return res.status(400).json({ success: false, message: 'URL, anonKey, dan users (array) wajib diisi.' });
+      }
+
+      const cleanUrl = url.trim().replace(/\/+$/, '');
+      const targetTable = tableName || 'system_users';
+
+      const resp = await fetch(`${cleanUrl}/rest/v1/${targetTable}?on_conflict=username`, {
+        method: 'POST',
+        headers: {
+          'apikey': anonKey,
+          'Authorization': `Bearer ${anonKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'resolution=merge-duplicates'
+        },
+        body: JSON.stringify(users)
+      });
+
+      if (!resp.ok) {
+        const errText = await resp.text();
+        return res.status(resp.status).json({ success: false, message: `Supabase error (${resp.status}): ${errText}` });
+      }
+
+      return res.json({
+        success: true,
+        count: users.length,
+        tableName: targetTable,
+        message: `Berhasil menyimpan ${users.length} akun ke tabel Supabase "${targetTable}".`
+      });
+    } catch (err: any) {
+      return res.status(500).json({ success: false, message: err?.message || 'Gagal mengirim akun ke Supabase.' });
     }
   });
 

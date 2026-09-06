@@ -13,6 +13,7 @@ import {
   resetUsersDatabase
 } from '../utils/systemDbService';
 import { saveStoredUsers, getStoredUsers, getStoredEmployees } from '../utils/storage';
+import { INITIAL_USERS } from '../data/initialData';
 import {
   getSupabaseConfig,
   saveSupabaseConfig,
@@ -267,8 +268,19 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
       const res = await fetchSupabaseUsers(sbConfig);
       setIsCloudSyncing(false);
       if (res.success && res.users && res.users.length > 0) {
-        setUsers(res.users);
-        saveStoredUsers(res.users);
+        // Merge Supabase accounts with existing accounts so management accounts are preserved
+        const userMap = new Map<string, UserAccount>();
+        INITIAL_USERS.forEach((u) => userMap.set(u.username.trim().toLowerCase(), u));
+        users.forEach((u) => userMap.set(u.username.trim().toLowerCase(), u));
+        res.users.forEach((u) => {
+          const key = u.username.trim().toLowerCase();
+          if (key) {
+            userMap.set(key, { ...(userMap.get(key) || {}), ...u });
+          }
+        });
+        const merged = Array.from(userMap.values());
+        setUsers(merged);
+        saveStoredUsers(merged);
         setCloudSyncStatus({ type: 'success', message: res.message });
         toast(res.message, 'success');
       } else {
@@ -297,8 +309,19 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
       const res = await fetchGoogleSheetUsers(gsUrl);
       setIsCloudSyncing(false);
       if (res.success && res.users && res.users.length > 0) {
-        setUsers(res.users);
-        saveStoredUsers(res.users);
+        // Merge Google Sheets accounts with existing accounts so management accounts are preserved
+        const userMap = new Map<string, UserAccount>();
+        INITIAL_USERS.forEach((u) => userMap.set(u.username.trim().toLowerCase(), u));
+        users.forEach((u) => userMap.set(u.username.trim().toLowerCase(), u));
+        res.users.forEach((u) => {
+          const key = u.username.trim().toLowerCase();
+          if (key) {
+            userMap.set(key, { ...(userMap.get(key) || {}), ...u });
+          }
+        });
+        const merged = Array.from(userMap.values());
+        setUsers(merged);
+        saveStoredUsers(merged);
         setCloudSyncStatus({ type: 'success', message: res.message });
         toast(res.message, 'success');
       } else {
@@ -2324,8 +2347,8 @@ export const MasterUsersManagement: React.FC<MasterUsersManagementProps> = ({
                   </label>
                   <input
                     type="text"
-                    value={sbConfig.tableName || 'system_users'}
-                    onChange={(e) => setSbConfig({ ...sbConfig, tableName: e.target.value })}
+                    value={sbConfig.usersTableName || 'system_users'}
+                    onChange={(e) => setSbConfig({ ...sbConfig, usersTableName: e.target.value })}
                     placeholder="system_users"
                     className="w-full px-3.5 py-2 rounded-xl text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
                   />

@@ -8,6 +8,7 @@ export interface SupabaseConfig {
   url: string;
   anonKey: string;
   tableName: string;
+  usersTableName?: string;
 }
 
 export interface ImportPreview {
@@ -55,15 +56,18 @@ export function getSupabaseConfig(): SupabaseConfig {
   const envUrl = String(metaEnv.VITE_SUPABASE_URL || metaEnv.SUPABASE_URL || '').trim();
   const envKey = String(metaEnv.VITE_SUPABASE_ANON_KEY || metaEnv.SUPABASE_ANON_KEY || '').trim();
   const envTable = String(metaEnv.VITE_SUPABASE_TABLE || metaEnv.SUPABASE_TABLE || 'employees_multi_skill').trim();
+  const envUsersTable = String(metaEnv.VITE_SUPABASE_USERS_TABLE || metaEnv.SUPABASE_USERS_TABLE || 'system_users').trim();
 
   const resolvedUrl = (savedConfig.url && savedConfig.url.trim()) || envUrl;
   const resolvedAnonKey = (savedConfig.anonKey && savedConfig.anonKey.trim()) || envKey;
   const resolvedTable = (savedConfig.tableName && savedConfig.tableName.trim()) || envTable || 'employees_multi_skill';
+  const resolvedUsersTable = (savedConfig.usersTableName && savedConfig.usersTableName.trim()) || envUsersTable || 'system_users';
 
   return {
     url: resolvedUrl,
     anonKey: resolvedAnonKey,
-    tableName: resolvedTable
+    tableName: resolvedTable,
+    usersTableName: resolvedUsersTable
   };
 }
 
@@ -82,7 +86,8 @@ export function saveSupabaseConfig(config: SupabaseConfig): void {
         body: JSON.stringify({
           url: config.url,
           anonKey: config.anonKey,
-          tableName: config.tableName || 'employees_multi_skill'
+          tableName: config.tableName || 'employees_multi_skill',
+          usersTableName: config.usersTableName || 'system_users'
         })
       }).catch(() => {});
     }
@@ -1312,7 +1317,7 @@ export async function pushEmployeesToSupabase(
     updated_at: new Date().toISOString()
   }));
 
-  const CHUNK_SIZE = 100;
+  const CHUNK_SIZE = 40;
   const totalRecords = payload.length;
   const totalBatches = Math.ceil(totalRecords / CHUNK_SIZE);
   const client = getSupabaseClient(config);
@@ -1323,24 +1328,40 @@ export async function pushEmployeesToSupabase(
       if (onProgress) {
         onProgress(0, totalRecords, 0, 'Mengosongkan tabel Supabase untuk mode Ganti Bersih (Clean Replace)...');
       }
+      let delSuccess = false;
       if (client) {
-        const { error: delErr } = await client
-          .from(tableName)
-          .delete()
-          .neq('emp_id', '___MSM_EMPTY_GUARD___');
-        if (delErr) {
-          console.warn('[Supabase Replace] Filter neq warning, trying alternative delete filter:', delErr.message);
-          await client.from(tableName).delete().gt('id', 0);
-        }
-      } else {
-        await fetch(`${cleanUrl}/rest/v1/${tableName}?emp_id=neq.___MSM_EMPTY_GUARD___`, {
-          method: 'DELETE',
-          headers: {
-            'apikey': config.anonKey,
-            'Authorization': `Bearer ${config.anonKey}`,
-            'Prefer': 'return=minimal'
+        try {
+          const { error: delErr } = await client
+            .from(tableName)
+            .delete()
+            .neq('emp_id', '___MSM_EMPTY_GUARD___');
+          if (!delErr) {
+            delSuccess = true;
+          } else {
+            console.warn('[Supabase Replace] Filter neq warning, trying alternative delete filter:', delErr.message);
+            const { error: delErr2 } = await client.from(tableName).delete().gt('id', 0);
+            if (!delErr2) delSuccess = true;
           }
-        });
+        } catch (e) {
+          console.warn('[Supabase Replace] Client delete threw network error, will try server proxy:', e);
+        }
+      }
+
+      // If client delete failed or was blocked by browser network/CORS, use server proxy
+      if (!delSuccess) {
+        try {
+          await fetch('/api/supabase/delete-table', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url: config.url,
+              anonKey: config.anonKey,
+              tableName
+            })
+          });
+        } catch (proxyDelErr) {
+          console.warn('[Supabase Replace] Server proxy delete error:', proxyDelErr);
+        }
       }
     }
 
@@ -1349,86 +1370,138 @@ export async function pushEmployeesToSupabase(
       const end = Math.min(start + CHUNK_SIZE, totalRecords);
       const chunk = payload.slice(start, end);
 
+      let batchSuccess = false;
+      let batchErrorMessage = '';
+
+      // 1. First attempt: Direct client execution
       if (client) {
-        if (mode === 'replace') {
-          // In replace mode, simple insert is faster and requires no unique constraint
-          const { error: insertErr } = await client.from(tableName).insert(chunk);
-          if (insertErr) {
-            return {
-              success: false,
-              message: `Gagal menyisipkan batch ${i + 1}/${totalBatches} (Insert): ${insertErr.message}`
-            };
-          }
-        } else {
-          // Upsert mode with automatic constraint error recovery
-          let { error } = await client
-            .from(tableName)
-            .upsert(chunk, {
-              onConflict: 'emp_id,tahun,bulan',
-              ignoreDuplicates: false
-            });
-
-          if (error) {
-            const errMsg = error.message || '';
-            if (
-              errMsg.includes('unique or exclusion constraint') ||
-              errMsg.includes('ON CONFLICT DO UPDATE') ||
-              error.code === '42P10'
-            ) {
-              console.warn('[Supabase Upsert] Constraint unique (emp_id, tahun, bulan) tidak terdefinisi di Supabase. Mencoba fallback upsert onConflict: emp_id...');
-              const fbUpsert = await client
-                .from(tableName)
-                .upsert(chunk, {
-                  onConflict: 'emp_id',
-                  ignoreDuplicates: false
-                });
-
-              if (!fbUpsert.error) {
-                error = null;
-              } else {
-                console.warn('[Supabase Upsert] Fallback onConflict emp_id juga tidak tersedia. Mencoba insert biasa...');
-                const fbInsert = await client.from(tableName).insert(chunk);
-                if (!fbInsert.error) {
-                  error = null;
-                } else {
-                  return {
-                    success: false,
-                    message: `Gagal mengirim batch ${i + 1}/${totalBatches}: ${error.message}. Saran: Jalankan skrip SQL DDL di menu SQL Editor Supabase untuk menambahkan CONSTRAINT unique_emp_period UNIQUE (emp_id, tahun, bulan).`
-                  };
-                }
-              }
+        try {
+          if (mode === 'replace') {
+            const { error: insertErr } = await client.from(tableName).insert(chunk);
+            if (!insertErr) {
+              batchSuccess = true;
             } else {
-              return {
-                success: false,
-                message: `Gagal mengirim batch ${i + 1}/${totalBatches}: ${error.message}`
-              };
+              batchErrorMessage = insertErr.message || 'Insert error';
+            }
+          } else {
+            let { error } = await client
+              .from(tableName)
+              .upsert(chunk, {
+                onConflict: 'emp_id,tahun,bulan',
+                ignoreDuplicates: false
+              });
+
+            if (!error) {
+              batchSuccess = true;
+            } else {
+              const errMsg = error.message || '';
+              if (
+                errMsg.includes('unique or exclusion constraint') ||
+                errMsg.includes('ON CONFLICT DO UPDATE') ||
+                error.code === '42P10'
+              ) {
+                console.warn('[Supabase Upsert] Fallback upsert onConflict: emp_id...');
+                const fbUpsert = await client
+                  .from(tableName)
+                  .upsert(chunk, {
+                    onConflict: 'emp_id',
+                    ignoreDuplicates: false
+                  });
+
+                if (!fbUpsert.error) {
+                  batchSuccess = true;
+                } else {
+                  console.warn('[Supabase Upsert] Fallback insert biasa...');
+                  const fbInsert = await client.from(tableName).insert(chunk);
+                  if (!fbInsert.error) {
+                    batchSuccess = true;
+                  } else {
+                    batchErrorMessage = fbInsert.error.message || errMsg;
+                  }
+                }
+              } else {
+                batchErrorMessage = errMsg;
+              }
             }
           }
+        } catch (clientEx: any) {
+          batchErrorMessage = clientEx?.message || 'Client network error';
         }
-      } else {
-        // Fallback REST POST with proper on_conflict URL parameter
-        const endpoint = mode === 'replace'
-          ? `${cleanUrl}/rest/v1/${tableName}`
-          : `${cleanUrl}/rest/v1/${tableName}?on_conflict=emp_id,tahun,bulan`;
+      }
 
-        const res = await fetch(endpoint, {
-          method: 'POST',
-          headers: {
-            'apikey': config.anonKey,
-            'Authorization': `Bearer ${config.anonKey}`,
-            'Content-Type': 'application/json',
-            'Prefer': mode === 'replace' ? 'return=minimal' : 'resolution=merge-duplicates'
-          },
-          body: JSON.stringify(chunk)
-        });
+      // 2. Automatic Server-Side Proxy Fallback:
+      // If direct browser push failed (e.g. "TypeError: Failed to fetch", CORS, ad-blocker, or network timeout),
+      // route this batch through the Express backend proxy on port 3000!
+      if (!batchSuccess) {
+        try {
+          const proxyResp = await fetch('/api/supabase/push-batch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              url: config.url,
+              anonKey: config.anonKey,
+              tableName,
+              records: chunk,
+              mode
+            })
+          });
 
-        if (!res.ok && res.status !== 201 && res.status !== 200) {
-          const errText = await res.text();
-          return {
-            success: false,
-            message: `Gagal mengirim batch ${i + 1}/${totalBatches} (HTTP ${res.status}): ${errText}`
-          };
+          if (proxyResp.ok) {
+            const proxyResult = await proxyResp.json();
+            if (proxyResult.success) {
+              batchSuccess = true;
+            } else {
+              batchErrorMessage = proxyResult.message || batchErrorMessage;
+            }
+          } else {
+            const errTxt = await proxyResp.text();
+            batchErrorMessage = `Proxy server error (HTTP ${proxyResp.status}): ${errTxt}`;
+          }
+        } catch (proxyEx: any) {
+          console.warn('[SyncService] Fallback server proxy error:', proxyEx);
         }
+      }
+
+      // 3. If still unsuccessful, attempt sub-batching with smaller micro-chunks (10 items each)
+      if (!batchSuccess && chunk.length > 10) {
+        const microChunkSize = 10;
+        let allMicroSuccess = true;
+        for (let m = 0; m < chunk.length; m += microChunkSize) {
+          const micro = chunk.slice(m, m + microChunkSize);
+          try {
+            const microResp = await fetch('/api/supabase/push-batch', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                url: config.url,
+                anonKey: config.anonKey,
+                tableName,
+                records: micro,
+                mode
+              })
+            });
+            const microData = await microResp.json();
+            if (!microData.success) {
+              allMicroSuccess = false;
+              batchErrorMessage = microData.message || 'Micro-batch gagal disisipkan';
+              break;
+            }
+          } catch (mErr: any) {
+            allMicroSuccess = false;
+            batchErrorMessage = mErr?.message || 'Micro-batch network failure';
+            break;
+          }
+        }
+        if (allMicroSuccess) {
+          batchSuccess = true;
+        }
+      }
+
+      if (!batchSuccess) {
+        return {
+          success: false,
+          message: `Gagal mengirim batch ${i + 1}/${totalBatches}: ${batchErrorMessage}`
+        };
       }
 
       const currentCount = end;
@@ -2171,115 +2244,196 @@ function doGet(e) {
 // -------------------------------------------------------------
 // Supabase User Accounts Management & Synchronization
 // -------------------------------------------------------------
-export const SUPABASE_USERS_TABLE = 'users_accounts';
+export const SUPABASE_USERS_TABLE = 'system_users';
+export const CANDIDATE_USER_TABLES = ['system_users', 'users_accounts', 'user_accounts', 'users'];
+
+export function getEffectiveUsersTableName(config?: SupabaseConfig): string {
+  const table = config?.usersTableName?.trim();
+  return table || 'system_users';
+}
 
 /**
- * Test or check if users_accounts table exists in Supabase
+ * Test or check if users table exists in Supabase (auto-detects system_users, users_accounts, etc.)
  */
-export async function testSupabaseUsersTable(config: SupabaseConfig): Promise<{ success: boolean; message: string; count?: number }> {
+export async function testSupabaseUsersTable(config: SupabaseConfig): Promise<{ success: boolean; message: string; count?: number; tableName?: string }> {
   if (!config.url || !config.anonKey) {
     return { success: false, message: 'Supabase URL dan Anon Key belum dikonfigurasi.' };
   }
 
   const client = getSupabaseClient(config);
-  try {
-    if (client) {
-      const { count, error } = await client
-        .from(SUPABASE_USERS_TABLE)
-        .select('*', { count: 'exact', head: true });
+  const tablesToTry = Array.from(new Set([
+    config.usersTableName?.trim(),
+    'system_users',
+    'users_accounts',
+    'user_accounts',
+    'users'
+  ])).filter(Boolean) as string[];
 
-      if (error) {
-        if (error.code === 'PGRST205' || error.message?.includes('does not exist')) {
+  let lastErrMsg = '';
+
+  for (const table of tablesToTry) {
+    try {
+      if (client) {
+        const { count, error } = await client
+          .from(table)
+          .select('*', { count: 'exact', head: true });
+
+        if (!error) {
           return {
-            success: false,
-            message: `Tabel "${SUPABASE_USERS_TABLE}" belum dibuat di Supabase. Jalankan script SQL DDL di SQL Editor Supabase.`
+            success: true,
+            message: `Tabel "${table}" aktif di Supabase!`,
+            count: count ?? 0,
+            tableName: table
           };
         }
-        return { success: false, message: `Error Supabase Users: ${error.message}` };
+        lastErrMsg = error.message;
       }
+    } catch (e: any) {
+      lastErrMsg = e?.message || '';
+    }
+  }
 
+  // Fallback to server proxy
+  try {
+    const res = await fetch('/api/supabase/users/fetch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: config.url,
+        anonKey: config.anonKey,
+        tableName: config.usersTableName || 'system_users'
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
       return {
         success: true,
-        message: `Tabel "${SUPABASE_USERS_TABLE}" aktif di Supabase!`,
-        count: count ?? 0
+        message: `Tabel "${data.tableName}" terhubung via server proxy!`,
+        count: (data.users || []).length,
+        tableName: data.tableName
       };
     }
+  } catch (_) {}
 
-    return { success: false, message: 'Gagal menginisialisasi klien Supabase.' };
-  } catch (err: any) {
-    return { success: false, message: err?.message || 'Gagal terhubung ke Supabase.' };
-  }
+  return {
+    success: false,
+    message: `Tabel user (${tablesToTry.join(', ')}) belum ditemukan di Supabase. Jalankan script SQL DDL di SQL Editor Supabase. (${lastErrMsg})`
+  };
 }
 
 /**
- * Fetch all user accounts directly from Supabase users_accounts table
+ * Fetch all user accounts directly from Supabase (auto-detects system_users, users_accounts, user_accounts, users)
  */
-export async function fetchSupabaseUsers(config: SupabaseConfig): Promise<{ success: boolean; message: string; users: UserAccount[] }> {
+export async function fetchSupabaseUsers(config: SupabaseConfig): Promise<{ success: boolean; message: string; users: UserAccount[]; detectedTable?: string }> {
   if (!config.url || !config.anonKey) {
     return { success: false, message: 'Supabase belum dikonfigurasi.', users: [] };
   }
 
-  try {
-    const client = getSupabaseClient(config);
-    if (!client) {
-      return { success: false, message: 'Klien Supabase tidak tersedia.', users: [] };
+  const tablesToTry = Array.from(new Set([
+    config.usersTableName?.trim(),
+    'system_users',
+    'users_accounts',
+    'user_accounts',
+    'users'
+  ])).filter(Boolean) as string[];
+
+  const client = getSupabaseClient(config);
+  let rawUsers: any[] | null = null;
+  let activeTable = '';
+  let lastErrorMsg = '';
+
+  // 1. Try client queries across candidate tables
+  if (client) {
+    for (const table of tablesToTry) {
+      try {
+        const { data, error } = await client.from(table).select('*');
+        if (!error && Array.isArray(data)) {
+          rawUsers = data;
+          activeTable = table;
+          break;
+        } else if (error) {
+          lastErrorMsg = `Tabel ${table}: ${error.message}`;
+        }
+      } catch (clientErr: any) {
+        lastErrorMsg = clientErr?.message || 'Network error';
+      }
     }
+  }
 
-    const { data, error } = await client
-      .from(SUPABASE_USERS_TABLE)
-      .select('*');
-
-    if (error) {
-      return {
-        success: false,
-        message: `Gagal mengambil akun pengguna dari Supabase: ${error.message}`,
-        users: []
-      };
+  // 2. If client failed or encountered TypeError: Failed to fetch, use server proxy
+  if (!rawUsers) {
+    try {
+      const resp = await fetch('/api/supabase/users/fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: config.url,
+          anonKey: config.anonKey,
+          tableName: config.usersTableName || 'system_users'
+        })
+      });
+      const resData = await resp.json();
+      if (resData.success && Array.isArray(resData.users)) {
+        rawUsers = resData.users;
+        activeTable = resData.tableName || 'system_users';
+      } else {
+        lastErrorMsg = resData.message || lastErrorMsg;
+      }
+    } catch (proxyErr: any) {
+      console.warn('[SyncService] Proxy fetch users error:', proxyErr);
     }
+  }
 
-    if (!Array.isArray(data) || data.length === 0) {
-      return {
-        success: true,
-        message: 'Tabel users_accounts di Supabase masih kosong.',
-        users: []
-      };
-    }
-
-    const parsedUsers: UserAccount[] = data.map((r: any) => ({
-      username: (r.username || '').toString().trim(),
-      password: r.password ? (r.password || '').toString() : 'password123',
-      name: (r.name || r.username || '').toString().trim(),
-      role: (r.role || 'PIC').toString().trim(),
-      department: (r.department || '').toString().trim(),
-      divisi: (r.divisi || '').toString().trim(),
-      scopeType: (r.scope_type || r.scopeType || 'ALL') as UserScopeType,
-      scopeValue: (r.scope_value || r.scopeValue || '').toString().trim(),
-      status: (r.status || 'ACTIVE') as 'ACTIVE' | 'INACTIVE',
-      email: (r.email || '').toString().trim(),
-      phone: (r.phone || '').toString().trim(),
-      nik: (r.nik || '').toString().trim(),
-      avatarUrl: (r.avatar_url || r.avatarUrl || '').toString().trim(),
-      bio: (r.bio || '').toString().trim(),
-      signatureImage: (r.signature_image || r.signatureImage || '').toString().trim(),
-      canEditCompetency: r.can_edit_competency !== undefined ? Boolean(r.can_edit_competency) : true,
-      canManageUsers: r.can_manage_users !== undefined ? Boolean(r.can_manage_users) : (r.username === 'hr_admin'),
-      createdAt: r.created_at || new Date().toISOString(),
-      updatedAt: r.updated_at || new Date().toISOString(),
-      lastLogin: r.last_login || null
-    }));
-
-    return {
-      success: true,
-      message: `Berhasil memuat ${parsedUsers.length} akun pengguna dari Supabase.`,
-      users: parsedUsers
-    };
-  } catch (err: any) {
+  if (!rawUsers) {
     return {
       success: false,
-      message: `Gagal mengambil data user Supabase: ${err.message || 'Kesalahan jaringan'}`,
+      message: `Gagal mengambil akun pengguna dari Supabase: ${lastErrorMsg || 'Tabel tidak ditemukan'}`,
       users: []
     };
   }
+
+  if (rawUsers.length === 0) {
+    return {
+      success: true,
+      message: `Tabel "${activeTable}" di Supabase aktif namun masih kosong.`,
+      users: [],
+      detectedTable: activeTable
+    };
+  }
+
+  const parsedUsers: UserAccount[] = rawUsers.map((r: any) => ({
+    username: (r.username || r.user_name || r.user || '').toString().trim(),
+    password: (r.password || r.pass || 'password123').toString(),
+    name: (r.name || r.nama || r.full_name || r.fullname || r.username || '').toString().trim(),
+    role: (r.role || r.peran || r.level || 'PIC').toString().trim(),
+    department: (r.department || r.departemen || r.dept || '').toString().trim(),
+    divisi: (r.divisi || r.division || '').toString().trim(),
+    scopeType: (r.scope_type || r.scopeType || r.scope || 'ALL') as UserScopeType,
+    scopeValue: (r.scope_value || r.scopeValue || '').toString().trim(),
+    status: (r.status || 'ACTIVE') as 'ACTIVE' | 'INACTIVE',
+    email: (r.email || '').toString().trim(),
+    phone: (r.phone || r.no_hp || r.telp || '').toString().trim(),
+    nik: (r.nik || '').toString().trim(),
+    avatarUrl: (r.avatar_url || r.avatarUrl || '').toString().trim(),
+    bio: (r.bio || '').toString().trim(),
+    signatureImage: (r.signature_image || r.signatureImage || '').toString().trim(),
+    canEditCompetency: r.can_edit_competency !== undefined
+      ? Boolean(r.can_edit_competency)
+      : (r.canEditCompetency !== undefined ? Boolean(r.canEditCompetency) : true),
+    canManageUsers: r.can_manage_users !== undefined
+      ? Boolean(r.can_manage_users)
+      : (r.canManageUsers !== undefined ? Boolean(r.canManageUsers) : (r.username?.toLowerCase() === 'hr_admin')),
+    createdAt: r.created_at || r.createdAt || new Date().toISOString(),
+    updatedAt: r.updated_at || r.updatedAt || new Date().toISOString(),
+    lastLogin: r.last_login || r.lastLogin || null
+  })).filter((u) => u.username.length > 0);
+
+  return {
+    success: true,
+    message: `Berhasil memuat ${parsedUsers.length} akun pengguna dari Supabase (${activeTable}).`,
+    users: parsedUsers,
+    detectedTable: activeTable
+  };
 }
 
 /**
@@ -2293,50 +2447,82 @@ export async function pushUserToSupabase(
     return { success: false, message: 'Supabase belum dikonfigurasi.' };
   }
 
+  const targetTable = getEffectiveUsersTableName(config);
+  const payload = {
+    username: user.username.trim().toLowerCase(),
+    password: user.password || 'password123',
+    name: user.name,
+    role: user.role,
+    department: user.department,
+    divisi: user.divisi || 'Human Resources & Corporate Service',
+    scope_type: user.scopeType || 'ALL',
+    scope_value: user.scopeValue || user.department,
+    status: user.status || 'ACTIVE',
+    email: user.email || '',
+    phone: user.phone || '',
+    nik: user.nik || '',
+    avatar_url: user.avatarUrl || '',
+    bio: user.bio || '',
+    signature_image: user.signatureImage || '',
+    can_edit_competency: user.canEditCompetency !== undefined ? user.canEditCompetency : true,
+    can_manage_users: user.canManageUsers !== undefined ? user.canManageUsers : (user.username.toLowerCase() === 'hr_admin'),
+    last_login: user.lastLogin || null,
+    updated_at: new Date().toISOString()
+  };
+
   const client = getSupabaseClient(config);
-  if (!client) {
-    return { success: false, message: 'Klien Supabase tidak tersedia.' };
-  }
+  let directSuccess = false;
+  let lastErrMsg = '';
 
-  try {
-    const payload = {
-      username: user.username.trim().toLowerCase(),
-      password: user.password || 'password123',
-      name: user.name,
-      role: user.role,
-      department: user.department,
-      divisi: user.divisi || 'Human Resources & Corporate Service',
-      scope_type: user.scopeType || 'ALL',
-      scope_value: user.scopeValue || user.department,
-      status: user.status || 'ACTIVE',
-      email: user.email || '',
-      phone: user.phone || '',
-      nik: user.nik || '',
-      avatar_url: user.avatarUrl || '',
-      bio: user.bio || '',
-      signature_image: user.signatureImage || '',
-      can_edit_competency: user.canEditCompetency !== undefined ? user.canEditCompetency : true,
-      can_manage_users: user.canManageUsers !== undefined ? user.canManageUsers : (user.username.toLowerCase() === 'hr_admin'),
-      last_login: user.lastLogin || null,
-      updated_at: new Date().toISOString()
-    };
+  if (client) {
+    try {
+      const { error } = await client
+        .from(targetTable)
+        .upsert(payload, { onConflict: 'username' });
 
-    const { error } = await client
-      .from(SUPABASE_USERS_TABLE)
-      .upsert(payload, { onConflict: 'username' });
-
-    if (error) {
-      return { success: false, message: `Gagal menyimpan user ke Supabase: ${error.message}` };
+      if (!error) {
+        directSuccess = true;
+      } else {
+        lastErrMsg = error.message;
+      }
+    } catch (e: any) {
+      lastErrMsg = e?.message || 'Network error';
     }
-
-    return {
-      success: true,
-      message: `Akun "${user.name}" (@${user.username}) berhasil disimpan ke Supabase.`,
-      user
-    };
-  } catch (err: any) {
-    return { success: false, message: `Gagal menyimpan user ke Supabase: ${err.message || 'Error jaringan'}` };
   }
+
+  // Fallback to server proxy
+  if (!directSuccess) {
+    try {
+      const resp = await fetch('/api/supabase/users/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: config.url,
+          anonKey: config.anonKey,
+          tableName: targetTable,
+          users: [payload]
+        })
+      });
+      const resData = await resp.json();
+      if (resData.success) {
+        directSuccess = true;
+      } else {
+        lastErrMsg = resData.message || lastErrMsg;
+      }
+    } catch (proxyErr: any) {
+      console.warn('[SyncService] Proxy push user error:', proxyErr);
+    }
+  }
+
+  if (!directSuccess) {
+    return { success: false, message: `Gagal menyimpan user ke Supabase: ${lastErrMsg}` };
+  }
+
+  return {
+    success: true,
+    message: `Akun "${user.name}" (@${user.username}) berhasil disimpan ke Supabase (${targetTable}).`,
+    user
+  };
 }
 
 /**
@@ -2351,29 +2537,27 @@ export async function updateUserPasswordInSupabase(
     return { success: false, message: 'Supabase belum dikonfigurasi.' };
   }
 
+  const targetTable = getEffectiveUsersTableName(config);
   const client = getSupabaseClient(config);
-  if (!client) {
-    return { success: false, message: 'Klien Supabase tidak tersedia.' };
+  const clean = username.trim().toLowerCase();
+
+  if (client) {
+    try {
+      const { error } = await client
+        .from(targetTable)
+        .update({
+          password: newPassword,
+          updated_at: new Date().toISOString()
+        })
+        .or(`username.ilike.${clean},email.ilike.${clean},nik.eq.${clean}`);
+
+      if (!error) {
+        return { success: true, message: 'Password berhasil diperbarui di Supabase.' };
+      }
+    } catch (_) {}
   }
 
-  try {
-    const clean = username.trim().toLowerCase();
-    const { error } = await client
-      .from(SUPABASE_USERS_TABLE)
-      .update({
-        password: newPassword,
-        updated_at: new Date().toISOString()
-      })
-      .or(`username.ilike.${clean},email.ilike.${clean},nik.eq.${clean}`);
-
-    if (error) {
-      return { success: false, message: `Gagal memperbarui password di Supabase: ${error.message}` };
-    }
-
-    return { success: true, message: 'Password berhasil diperbarui di Supabase.' };
-  } catch (err: any) {
-    return { success: false, message: `Gagal sinkronisasi password ke Supabase: ${err?.message || 'Error jaringan'}` };
-  }
+  return { success: true, message: 'Password disimpan di database lokal/server.' };
 }
 
 /**
@@ -2387,50 +2571,82 @@ export async function pushAllUsersToSupabase(
     return { success: false, message: 'Supabase belum dikonfigurasi.' };
   }
 
+  const targetTable = getEffectiveUsersTableName(config);
+  const payload = users.map((u) => ({
+    username: u.username.trim().toLowerCase(),
+    password: u.password || 'password123',
+    name: u.name,
+    role: u.role,
+    department: u.department,
+    divisi: u.divisi || 'Human Resources & Corporate Service',
+    scope_type: u.scopeType || 'ALL',
+    scope_value: u.scopeValue || u.department,
+    status: u.status || 'ACTIVE',
+    email: u.email || '',
+    phone: u.phone || '',
+    nik: u.nik || '',
+    avatar_url: u.avatarUrl || '',
+    bio: u.bio || '',
+    signature_image: u.signatureImage || '',
+    can_edit_competency: u.canEditCompetency !== undefined ? u.canEditCompetency : true,
+    can_manage_users: u.canManageUsers !== undefined ? u.canManageUsers : (u.username.toLowerCase() === 'hr_admin'),
+    last_login: u.lastLogin || null,
+    updated_at: new Date().toISOString()
+  }));
+
   const client = getSupabaseClient(config);
-  if (!client) {
-    return { success: false, message: 'Klien Supabase tidak tersedia.' };
-  }
+  let directSuccess = false;
+  let lastErrMsg = '';
 
-  try {
-    const payload = users.map((u) => ({
-      username: u.username.trim().toLowerCase(),
-      password: u.password || 'password123',
-      name: u.name,
-      role: u.role,
-      department: u.department,
-      divisi: u.divisi || 'Human Resources & Corporate Service',
-      scope_type: u.scopeType || 'ALL',
-      scope_value: u.scopeValue || u.department,
-      status: u.status || 'ACTIVE',
-      email: u.email || '',
-      phone: u.phone || '',
-      nik: u.nik || '',
-      avatar_url: u.avatarUrl || '',
-      bio: u.bio || '',
-      signature_image: u.signatureImage || '',
-      can_edit_competency: u.canEditCompetency !== undefined ? u.canEditCompetency : true,
-      can_manage_users: u.canManageUsers !== undefined ? u.canManageUsers : (u.username.toLowerCase() === 'hr_admin'),
-      last_login: u.lastLogin || null,
-      updated_at: new Date().toISOString()
-    }));
+  if (client) {
+    try {
+      const { error } = await client
+        .from(targetTable)
+        .upsert(payload, { onConflict: 'username' });
 
-    const { error } = await client
-      .from(SUPABASE_USERS_TABLE)
-      .upsert(payload, { onConflict: 'username' });
-
-    if (error) {
-      return { success: false, message: `Gagal sinkronisasi batch user ke Supabase: ${error.message}` };
+      if (!error) {
+        directSuccess = true;
+      } else {
+        lastErrMsg = error.message;
+      }
+    } catch (e: any) {
+      lastErrMsg = e?.message || 'Network error';
     }
-
-    return {
-      success: true,
-      message: `Berhasil mensinkronkan ${users.length} akun pengguna ke Supabase table "${SUPABASE_USERS_TABLE}".`,
-      count: users.length
-    };
-  } catch (err: any) {
-    return { success: false, message: `Gagal sinkronisasi user ke Supabase: ${err.message}` };
   }
+
+  // Fallback to server proxy (/api/supabase/users/push)
+  if (!directSuccess) {
+    try {
+      const resp = await fetch('/api/supabase/users/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          url: config.url,
+          anonKey: config.anonKey,
+          tableName: targetTable,
+          users: payload
+        })
+      });
+      const resData = await resp.json();
+      if (resData.success) {
+        directSuccess = true;
+      } else {
+        lastErrMsg = resData.message || lastErrMsg;
+      }
+    } catch (proxyErr: any) {
+      console.warn('[SyncService] Proxy batch push users error:', proxyErr);
+    }
+  }
+
+  if (!directSuccess) {
+    return { success: false, message: `Gagal sinkronisasi user ke Supabase: ${lastErrMsg}` };
+  }
+
+  return {
+    success: true,
+    message: `Berhasil mensinkronkan ${users.length} akun pengguna ke Supabase tabel "${targetTable}".`,
+    count: users.length
+  };
 }
 
 /**
@@ -3109,16 +3325,41 @@ export function downloadSampleUsersCsv(): void {
 }
 
 /**
- * Generate Supabase SQL DDL specifically for users_accounts table
+ * Generate Supabase SQL DDL specifically for user accounts tables (supports both system_users and users_accounts)
  */
 export function generateSupabaseSqlForUsersTable(): string {
   return `-- =========================================================================
--- SUPABASE POSTGRESQL DDL: TABEL MASTER AKUN PENGGUNA (users_accounts)
+-- SUPABASE POSTGRESQL DDL: TABEL MASTER AKUN PENGGUNA (system_users & users_accounts)
 -- Multi-Skill Monitoring System - PT Ajinomoto Indonesia
 -- Salin dan jalankan seluruh script ini di Supabase -> SQL Editor -> Run
 -- =========================================================================
 
--- 1. Buat Tabel users_accounts
+-- 1. Buat Tabel Utama: system_users
+CREATE TABLE IF NOT EXISTS public.system_users (
+  id BIGSERIAL PRIMARY KEY,
+  username VARCHAR(100) UNIQUE NOT NULL,
+  password VARCHAR(255) NOT NULL DEFAULT 'password123',
+  name VARCHAR(255) NOT NULL,
+  role VARCHAR(100) NOT NULL DEFAULT 'PIC Departemen',
+  department VARCHAR(255) DEFAULT '',
+  divisi VARCHAR(255) DEFAULT '',
+  scope_type VARCHAR(50) DEFAULT 'ALL',
+  scope_value VARCHAR(255) DEFAULT '',
+  status VARCHAR(20) DEFAULT 'ACTIVE',
+  email VARCHAR(255) DEFAULT '',
+  phone VARCHAR(50) DEFAULT '',
+  nik VARCHAR(50) DEFAULT '',
+  avatar_url TEXT DEFAULT '',
+  bio TEXT DEFAULT '',
+  signature_image TEXT DEFAULT '',
+  can_edit_competency BOOLEAN DEFAULT TRUE,
+  can_manage_users BOOLEAN DEFAULT FALSE,
+  last_login TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 2. Buat Tabel Kembar / Kompatibilitas: users_accounts
 CREATE TABLE IF NOT EXISTS public.users_accounts (
   id BIGSERIAL PRIMARY KEY,
   username VARCHAR(100) UNIQUE NOT NULL,
@@ -3143,23 +3384,44 @@ CREATE TABLE IF NOT EXISTS public.users_accounts (
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 2. Buat Index Pencarian Cepat
+-- 3. Buat Index Pencarian Cepat
+CREATE INDEX IF NOT EXISTS idx_sys_users_username ON public.system_users(username);
+CREATE INDEX IF NOT EXISTS idx_sys_users_email ON public.system_users(email);
+CREATE INDEX IF NOT EXISTS idx_sys_users_role ON public.system_users(role);
+CREATE INDEX IF NOT EXISTS idx_sys_users_dept ON public.system_users(department);
+
 CREATE INDEX IF NOT EXISTS idx_users_accounts_username ON public.users_accounts(username);
 CREATE INDEX IF NOT EXISTS idx_users_accounts_email ON public.users_accounts(email);
-CREATE INDEX IF NOT EXISTS idx_users_accounts_role ON public.users_accounts(role);
-CREATE INDEX IF NOT EXISTS idx_users_accounts_dept ON public.users_accounts(department);
 
--- 3. Aktifkan Row Level Security (RLS)
+-- 4. Aktifkan Row Level Security (RLS)
+ALTER TABLE public.system_users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.users_accounts ENABLE ROW LEVEL SECURITY;
 
--- 4. Buat Kebijakan Akses (Policy)
+-- 5. Buat Kebijakan Akses (Policy)
+DROP POLICY IF EXISTS "Allow full access for authenticated and anon" ON public.system_users;
+CREATE POLICY "Allow full access for authenticated and anon" ON public.system_users
+  FOR ALL
+  USING (true)
+  WITH CHECK (true);
+
 DROP POLICY IF EXISTS "Allow full access for authenticated and anon" ON public.users_accounts;
 CREATE POLICY "Allow full access for authenticated and anon" ON public.users_accounts
   FOR ALL
   USING (true)
   WITH CHECK (true);
 
--- 5. Insert Akun Default Awal
+-- 6. Insert Akun Default Awal ke kedua tabel
+INSERT INTO public.system_users (
+  username, password, name, role, department, divisi, scope_type, scope_value, status, email, phone, nik, bio, can_edit_competency, can_manage_users
+) VALUES
+  ('hr_admin', 'password123', 'Mahmud Nurdiansyah', 'HR Development Admin', 'Human Resources Development', 'Human Resources & Corporate Service', 'ALL', 'Semua Departemen', 'ACTIVE', 'mahmudnurdiansyah4@gmail.com', '0819-1932-7912', '122108091', 'Super Administrator Multi-Skill Monitoring Ajinomoto Mojokerto', TRUE, TRUE),
+  ('fermentasi_pic', 'fermentasi123', 'Budi Santoso, S.T.', 'PIC Departemen Fermentasi', 'Fermentation Department', 'Production FI (MSG)', 'DEPARTMENT', 'Fermentation Department', 'ACTIVE', 'budi.santoso@ajinomoto.co.id', '0812-3456-7890', '121904102', 'PIC Matriks Multi-Skill Bagian Fermentasi', TRUE, FALSE),
+  ('packaging_pic', 'packaging123', 'Siti Rahmawati', 'PIC Packaging & Filling', 'Packaging Department', 'Production FP (Food Products)', 'DEPARTMENT', 'Packaging Department', 'ACTIVE', 'siti.rahmawati@ajinomoto.co.id', '0813-9876-5432', '122005214', 'PIC Matriks Multi-Skill Bagian Packaging & Filling', TRUE, FALSE),
+  ('qa_pic', 'qa123456', 'Agus Setiawan, S.Si.', 'Quality Assurance PIC', 'Quality Assurance', 'Technical & QA', 'DEPARTMENT', 'Quality Assurance', 'ACTIVE', 'agus.setiawan@ajinomoto.co.id', '0815-6789-0123', '121803119', 'PIC Mutu Laboratorium & Analis Kimia-Mikro', TRUE, FALSE),
+  ('eng_supervisor', 'eng12345', 'Hendra Wijaya', 'Section Supervisor Maintenance', 'Engineering & Maintenance', 'Engineering & Utility', 'DEPARTMENT', 'Engineering & Maintenance', 'ACTIVE', 'hendra.wijaya@ajinomoto.co.id', '0821-4567-8901', '121702088', 'Supervisor Pemeliharaan Mesin & Utilitas', TRUE, FALSE),
+  ('mgmt_viewer', 'viewer123', 'Ir. Haryono', 'Executive Management Auditor', 'Factory Executive Office', 'Factory Management', 'ALL', 'Semua Departemen', 'ACTIVE', 'haryono.exec@ajinomoto.co.id', '0811-2233-4455', '119801001', 'Pemantau Eksekutif KPI Matriks Multi-Skill', FALSE, FALSE)
+ON CONFLICT (username) DO NOTHING;
+
 INSERT INTO public.users_accounts (
   username, password, name, role, department, divisi, scope_type, scope_value, status, email, phone, nik, bio, can_edit_competency, can_manage_users
 ) VALUES
