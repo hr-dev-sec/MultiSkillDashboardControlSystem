@@ -60,10 +60,11 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
   const [signerName, setSignerName] = useState(currentUser.name || 'Mahmud Nurdiansyah');
   const [signerRole, setSignerRole] = useState(currentUser.role || 'HR Development Specialist');
 
-  // Tab state: 'page1' | 'page2' | 'page3' | 'email' | 'magic_link' | 'gas' | 'schedule' | 'smtp' | 'history'
+  // Tab state: 'page1' | 'page2' | 'page3' | 'roster' | 'action_plan' | 'email' | 'magic_link' | 'gas' | 'schedule' | 'smtp' | 'history'
   const [activePreviewPage, setActivePreviewPage] = useState<
-    'page1' | 'page2' | 'page3' | 'email' | 'magic_link' | 'gas' | 'schedule' | 'smtp' | 'history'
+    'page1' | 'page2' | 'page3' | 'roster' | 'action_plan' | 'email' | 'magic_link' | 'gas' | 'schedule' | 'smtp' | 'history'
   >('page1');
+  const [rosterSearch, setRosterSearch] = useState('');
 
   // Email state
   const [isSendingEmail, setIsSendingEmail] = useState(false);
@@ -134,6 +135,27 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
   const stats = computeDashboardStats(targetData);
   const { totalMS, totalUS, totalManpower, percentMS, byDivisi, byDepartment, byGrade, byPosition } = stats;
   const pctFormatted = (percentMS * 100).toFixed(1) + '%';
+
+  const avgScore = targetData.length > 0
+    ? (targetData.reduce((acc, e) => acc + (Number(e.totalScore) || 0), 0) / targetData.length).toFixed(1)
+    : '0';
+
+  const underStandardEmployees = targetData.filter(
+    (e) => e.result === 'US' || (e.standard !== null && e.standard !== undefined && Number(e.totalScore) < Number(e.standard))
+  );
+
+  const filteredRosterPreview = targetData.filter((emp) => {
+    if (!rosterSearch.trim()) return true;
+    const q = rosterSearch.toLowerCase();
+    return (
+      (emp.empName || '').toLowerCase().includes(q) ||
+      (emp.empId || '').toLowerCase().includes(q) ||
+      (emp.department || '').toLowerCase().includes(q) ||
+      (emp.divisi || '').toLowerCase().includes(q) ||
+      (emp.jabatan || '').toLowerCase().includes(q) ||
+      (emp.grade || '').toLowerCase().includes(q)
+    );
+  });
 
   const thnStr = filters.tahun.join(', ') || '2026';
   const blnStr = filters.bulan.length
@@ -390,7 +412,7 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
     }
 
     setIsSendingEmail(true);
-    setEmailSendingStep('Menyusun dokumen PDF resmi 3 halaman...');
+    setEmailSendingStep('Menyusun dokumen PDF laporan resmi...');
 
     try {
       await new Promise((resolve) => setTimeout(resolve, 200));
@@ -603,10 +625,117 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
               )}
             </div>
 
+            {/* Report Type & Orientation Selection */}
+            <div className="card-elegant p-4 space-y-3">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center justify-between">
+                <span>2. Format &amp; Tata Letak Dokumen</span>
+                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded-full">
+                  Data Lengkap
+                </span>
+              </label>
+
+              {/* Format / Report Type */}
+              <div className="space-y-1.5">
+                <span className="text-[11px] font-semibold text-slate-500 block">Jenis Laporan:</span>
+                <div className="grid grid-cols-1 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setReportType('comprehensive')}
+                    className={`p-2 rounded-xl text-left border transition text-xs font-semibold cursor-pointer ${
+                      reportType === 'comprehensive'
+                        ? 'border-[#0E2340] dark:border-amber-400 bg-white dark:bg-slate-800 text-[#0E2340] dark:text-amber-300 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-white/60'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold flex items-center gap-1.5">
+                        <i className="fa-solid fa-file-shield text-indigo-500 text-xs"></i>
+                        <span>Komprehensif (Lengkap)</span>
+                      </span>
+                      <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 font-bold">Rekomendasi</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Ringkasan Eksekutif + Rekap Organisasi + <strong>Detail Seluruh Karyawan</strong> + Action Plan US
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setReportType('employee_detail')}
+                    className={`p-2 rounded-xl text-left border transition text-xs font-semibold cursor-pointer ${
+                      reportType === 'employee_detail'
+                        ? 'border-[#0E2340] dark:border-amber-400 bg-white dark:bg-slate-800 text-[#0E2340] dark:text-amber-300 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-white/60'
+                    }`}
+                  >
+                    <span className="font-bold flex items-center gap-1.5">
+                      <i className="fa-solid fa-users-viewfinder text-emerald-500 text-xs"></i>
+                      <span>Fokus Detail Evaluasi Karyawan</span>
+                    </span>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Fokus matriks evaluasi per individu karyawan, perolehan skor, target standar, dan analisis gap
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setReportType('executive')}
+                    className={`p-2 rounded-xl text-left border transition text-xs font-semibold cursor-pointer ${
+                      reportType === 'executive'
+                        ? 'border-[#0E2340] dark:border-amber-400 bg-white dark:bg-slate-800 text-[#0E2340] dark:text-amber-300 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-white/60'
+                    }`}
+                  >
+                    <span className="font-bold flex items-center gap-1.5">
+                      <i className="fa-solid fa-chart-pie text-amber-500 text-xs"></i>
+                      <span>Ringkasan Eksekutif Manajemen</span>
+                    </span>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Ringkasan kinerja per divisi, departemen, seksi, jabatan, dan kategori grade
+                    </p>
+                  </button>
+                </div>
+              </div>
+
+              {/* Orientation */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+                <span className="text-[11px] font-semibold text-slate-500 block">Orientasi Dokumen:</span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setOrientation('portrait')}
+                    className={`p-2 rounded-xl text-center border transition text-xs font-semibold cursor-pointer ${
+                      orientation === 'portrait'
+                        ? 'border-[#0E2340] dark:border-amber-400 bg-white dark:bg-slate-800 text-[#0E2340] dark:text-amber-300 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-white/60'
+                    }`}
+                  >
+                    <i className="fa-solid fa-file text-sm mb-1 block text-slate-500"></i>
+                    <span className="block font-bold">Portrait</span>
+                    <span className="text-[9.5px] text-slate-400">Standar A4 Tegak</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setOrientation('landscape')}
+                    className={`p-2 rounded-xl text-center border transition text-xs font-semibold cursor-pointer ${
+                      orientation === 'landscape'
+                        ? 'border-[#0E2340] dark:border-amber-400 bg-white dark:bg-slate-800 text-[#0E2340] dark:text-amber-300 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:bg-white/60'
+                    }`}
+                  >
+                    <i className="fa-solid fa-file rotate-90 text-sm mb-1 block text-slate-500"></i>
+                    <span className="block font-bold">Landscape</span>
+                    <span className="text-[9.5px] text-slate-400">Mendatar (Tabel Luas)</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
             {/* Quick KPI Stats Overview */}
             <div className="card-elegant p-4 space-y-2">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">
-                2. Rekapitulasi Metrik PDF &amp; Email
+                3. Rekapitulasi Metrik PDF &amp; Email
               </label>
               <div className="grid grid-cols-4 gap-2 text-center">
                 <div className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800">
@@ -631,8 +760,8 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
             {/* Signer Customization */}
             <div className="card-elegant p-4 space-y-3">
               <label className="block text-xs font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider flex items-center justify-between">
-                <span>3. Pejabat Penanda Tangan (E-Sign)</span>
-                <span className="text-[10px] font-normal text-slate-400">Dicetak pada Hal. 3</span>
+                <span>4. Pejabat Penanda Tangan (E-Sign)</span>
+                <span className="text-[10px] font-normal text-slate-400">Dicetak pada Lembar Pengesahan</span>
               </label>
               <div className="space-y-2">
                 <div>
@@ -688,39 +817,63 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
             <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
               <div className="flex items-center gap-1.5 overflow-x-auto py-1">
                 {/* PDF Page Tabs */}
-                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl gap-0.5 overflow-x-auto max-w-full">
                   <button
                     type="button"
                     onClick={() => setActivePreviewPage('page1')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 shrink-0 ${
                       activePreviewPage === 'page1'
-                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400'
+                        ? 'bg-white dark:bg-slate-900 text-[#0E2340] dark:text-amber-300 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                     }`}
                   >
-                    Hal 1
+                    <span>Ringkasan &amp; Divisi</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setActivePreviewPage('page2')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 shrink-0 ${
                       activePreviewPage === 'page2'
-                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400'
+                        ? 'bg-white dark:bg-slate-900 text-[#0E2340] dark:text-amber-300 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                     }`}
                   >
-                    Hal 2
+                    <span>Departemen ({byDepartment.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivePreviewPage('roster')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                      activePreviewPage === 'roster'
+                        ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    <i className="fa-solid fa-users text-[10px]"></i>
+                    <span>Detail Karyawan ({targetData.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActivePreviewPage('action_plan')}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                      activePreviewPage === 'action_plan'
+                        ? 'bg-white dark:bg-slate-900 text-rose-600 dark:text-rose-400 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                    }`}
+                  >
+                    <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"></span>
+                    <span>Action Plan US ({totalUS})</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setActivePreviewPage('page3')}
-                    className={`px-3 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 shrink-0 ${
                       activePreviewPage === 'page3'
-                        ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400'
+                        ? 'bg-white dark:bg-slate-900 text-[#0E2340] dark:text-amber-300 shadow-xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
                     }`}
                   >
-                    Hal 3
+                    <span>Pengesahan E-Sign</span>
                   </button>
                 </div>
 
@@ -1276,11 +1429,15 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                 </div>
               )}
 
-              {/* 3-PAGE PDF VISUAL PREVIEWS */}
-              {['page1', 'page2', 'page3'].includes(activePreviewPage) && (
-                <div className="w-[340px] sm:w-[440px] mx-auto min-h-[580px] bg-white text-slate-800 rounded-2xl shadow-xl border border-slate-300 flex flex-col justify-between overflow-hidden">
+              {/* PDF VISUAL PREVIEWS */}
+              {['page1', 'page2', 'page3', 'roster', 'action_plan'].includes(activePreviewPage) && (
+                <div
+                  className={`${
+                    orientation === 'landscape' ? 'w-full max-w-[640px]' : 'w-[340px] sm:w-[480px]'
+                  } mx-auto min-h-[580px] bg-white text-slate-800 rounded-2xl shadow-xl border border-slate-300 flex flex-col justify-between overflow-hidden transition-all duration-300`}
+                >
                   {/* PDF Top Official Header Banner */}
-                  <div className="relative">
+                  <div className="relative shrink-0">
                     <div className="p-3 text-white flex items-center justify-between" style={{ backgroundColor: '#0E2340' }}>
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded bg-white p-0.5 flex items-center justify-center shrink-0">
@@ -1300,71 +1457,105 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                           </p>
                         </div>
                       </div>
+                      <div className="text-right hidden sm:block">
+                        <span className="text-[7.5px] px-2 py-0.5 rounded-full bg-amber-400 text-slate-950 font-extrabold tracking-wide uppercase">
+                          {reportType === 'comprehensive' ? 'Laporan Komprehensif' : reportType === 'employee_detail' ? 'Detail Karyawan' : 'Eksekutif'}
+                        </span>
+                        <p className="text-[7px] text-slate-300 mt-0.5">Format: {orientation.toUpperCase()}</p>
+                      </div>
                     </div>
                     {/* Gold stripe */}
                     <div className="h-1 w-full" style={{ backgroundColor: '#B8874B' }}></div>
                   </div>
 
                   {/* PDF Content Area */}
-                  <div className="p-3.5 space-y-3 flex-1 flex flex-col justify-between">
+                  <div className="p-3.5 space-y-3 flex-1 flex flex-col justify-between overflow-hidden">
+                    {/* PAGE 1: RINGKASAN EKSEKUTIF & DIVISI */}
                     {activePreviewPage === 'page1' && (
                       <div className="space-y-2.5 animate-fadeIn">
                         {/* 4 KPI Cards */}
                         <div className="grid grid-cols-4 gap-1.5 text-center">
-                          <div className="p-1.5 rounded bg-white border border-slate-200 relative overflow-hidden text-left pl-2.5">
+                          <div className="p-1.5 rounded bg-white border border-slate-200 relative overflow-hidden text-left pl-2.5 shadow-xs">
                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#0E2340]"></div>
                             <p className="font-bold text-slate-800 text-[11px] leading-tight">{totalManpower}</p>
                             <span className="text-[6.5px] text-slate-500 block mt-0.5">Total Karyawan</span>
                           </div>
-                          <div className="p-1.5 rounded bg-white border border-slate-200 relative overflow-hidden text-left pl-2.5">
+                          <div className="p-1.5 rounded bg-white border border-slate-200 relative overflow-hidden text-left pl-2.5 shadow-xs">
                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#0FA968]"></div>
-                            <p className="font-bold text-slate-800 text-[11px] leading-tight">{totalMS}</p>
+                            <p className="font-bold text-emerald-700 text-[11px] leading-tight">{totalMS}</p>
                             <span className="text-[6.5px] text-slate-500 block mt-0.5">Standar (MS)</span>
                           </div>
-                          <div className="p-1.5 rounded bg-white border border-slate-200 relative overflow-hidden text-left pl-2.5">
+                          <div className="p-1.5 rounded bg-white border border-slate-200 relative overflow-hidden text-left pl-2.5 shadow-xs">
                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#E10600]"></div>
-                            <p className="font-bold text-slate-800 text-[11px] leading-tight">{totalUS}</p>
+                            <p className="font-bold text-rose-700 text-[11px] leading-tight">{totalUS}</p>
                             <span className="text-[6.5px] text-slate-500 block mt-0.5">Belum Standar</span>
                           </div>
-                          <div className="p-1.5 rounded bg-white border border-slate-200 relative overflow-hidden text-left pl-2.5">
+                          <div className="p-1.5 rounded bg-white border border-slate-200 relative overflow-hidden text-left pl-2.5 shadow-xs">
                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#B8874B]"></div>
-                            <p className="font-bold text-slate-800 text-[11px] leading-tight">{pctFormatted}</p>
+                            <p className="font-bold text-amber-700 text-[11px] leading-tight">{pctFormatted}</p>
                             <span className="text-[6.5px] text-slate-500 block mt-0.5">Pencapaian</span>
                           </div>
                         </div>
 
-                        <div className="text-[7.5px] space-y-0.5 pt-0.5">
+                        {/* Strategic Analytical Highlights Box */}
+                        <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 text-[7px] space-y-1">
+                          <p className="font-bold text-[#0E2340] uppercase tracking-wide flex items-center gap-1">
+                            <i className="fa-solid fa-chart-line text-[#B8874B]"></i> HIGHLIGHT ANALISIS MULTI-SKILL
+                          </p>
+                          <div className="grid grid-cols-3 gap-1 pt-0.5 text-center">
+                            <div className="bg-white p-1 rounded border border-slate-100">
+                              <span className="text-slate-400 block text-[6px]">Rata-rata Skor</span>
+                              <strong className="text-[8.5px] text-slate-800">{avgScore} / 100</strong>
+                            </div>
+                            <div className="bg-white p-1 rounded border border-slate-100">
+                              <span className="text-slate-400 block text-[6px]">Defisit Pelatihan (US)</span>
+                              <strong className="text-[8.5px] text-rose-600">{totalUS} Karyawan</strong>
+                            </div>
+                            <div className="bg-white p-1 rounded border border-slate-100">
+                              <span className="text-slate-400 block text-[6px]">Cakupan Organisasi</span>
+                              <strong className="text-[8.5px] text-slate-800">{byDivisi.length} Div &bull; {byDepartment.length} Dept</strong>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Parameter Monitoring */}
+                        <div className="text-[7.5px] space-y-0.5">
                           <p className="font-bold text-[#B8874B] uppercase tracking-wide text-[7px]">PARAMETER MONITORING</p>
                           <p className="text-slate-600">
-                            Tahun: {thnStr} | Bulan: {blnStr} | Divisi: {divStr || 'Semua'} | Dept: {deptStr || 'Semua'}
+                            Tahun: <strong>{thnStr}</strong> | Bulan: <strong>{blnStr}</strong> | Divisi: <strong>{divStr || 'Semua Divisi'}</strong> | Dept: <strong>{deptStr || 'Semua Dept'}</strong>
                           </p>
                         </div>
 
-                        {/* Rekap Divisi Table */}
+                        {/* Rekapitulasi Lengkap Divisi */}
                         <div className="space-y-1">
-                          <p className="font-bold text-[8px] text-[#0E2340] uppercase">REKAPITULASI DIVISI</p>
-                          <div className="border border-slate-200 rounded overflow-hidden">
+                          <div className="flex items-center justify-between">
+                            <p className="font-bold text-[8px] text-[#0E2340] uppercase">REKAPITULASI SELURUH DIVISI ({byDivisi.length})</p>
+                            <span className="text-[6.5px] text-slate-400">Diurutkan berdasarkan headcount</span>
+                          </div>
+                          <div className="border border-slate-200 rounded overflow-hidden max-h-[160px] overflow-y-auto">
                             <table className="w-full text-[7px] text-left">
-                              <thead className="bg-[#0E2340] text-white">
+                              <thead className="bg-[#0E2340] text-white sticky top-0">
                                 <tr>
+                                  <th className="p-1">No</th>
                                   <th className="p-1">Divisi</th>
                                   <th className="p-1 text-center">Total</th>
                                   <th className="p-1 text-center">MS</th>
                                   <th className="p-1 text-center">US</th>
-                                  <th className="p-1 text-right">% MS</th>
+                                  <th className="p-1 text-right">% Pencapaian</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {byDivisi.slice(0, 4).map((d, i) => {
+                                {byDivisi.map((d, i) => {
                                   const total = d.ms + d.us;
                                   const pct = total > 0 ? (d.ms / total) * 100 : 0;
                                   return (
                                     <tr key={i} className={i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}>
-                                      <td className="p-1 font-semibold">{d.label}</td>
-                                      <td className="p-1 text-center">{total}</td>
+                                      <td className="p-1 text-slate-400">{i + 1}</td>
+                                      <td className="p-1 font-semibold text-slate-800">{d.label}</td>
+                                      <td className="p-1 text-center font-semibold">{total}</td>
                                       <td className="p-1 text-center text-emerald-600 font-bold">{d.ms}</td>
                                       <td className="p-1 text-center text-rose-600 font-bold">{d.us}</td>
-                                      <td className="p-1 text-right font-bold">{pct.toFixed(1)}%</td>
+                                      <td className="p-1 text-right font-bold text-slate-800">{pct.toFixed(1)}%</td>
                                     </tr>
                                   );
                                 })}
@@ -1375,57 +1566,270 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                       </div>
                     )}
 
+                    {/* PAGE 2: REKAPITULASI LENGKAP DEPARTEMEN & JABATAN */}
                     {activePreviewPage === 'page2' && (
                       <div className="space-y-2.5 animate-fadeIn">
-                        <p className="font-bold text-[8px] text-[#0E2340] uppercase">REKAPITULASI GRADE &amp; DEPARTMENT</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className="border border-slate-200 rounded p-1.5">
-                            <p className="font-bold text-[7.5px] mb-1 text-slate-700">Persebaran Grade</p>
-                            {byGrade.slice(0, 4).map((g, i) => {
-                              const total = g.ms + g.us;
-                              const pct = total > 0 ? (g.ms / total) * 100 : 0;
-                              return (
-                                <div key={i} className="flex justify-between text-[7px] py-0.5 border-b border-slate-100">
-                                  <span>{g.label}</span>
-                                  <span className="font-bold">{pct.toFixed(1)}%</span>
-                                </div>
-                              );
-                            })}
+                        {/* Rekapitulasi Departemen Lengkap (Bukan Top saja!) */}
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <p className="font-bold text-[8px] text-[#0E2340] uppercase">
+                              REKAPITULASI SELURUH DEPARTEMEN ({byDepartment.length})
+                            </p>
+                            <span className="text-[6.5px] text-slate-400">Lengkap seluruh departemen</span>
                           </div>
-                          <div className="border border-slate-200 rounded p-1.5">
-                            <p className="font-bold text-[7.5px] mb-1 text-slate-700">Top Departments</p>
-                            {byDepartment.slice(0, 4).map((dp, i) => (
-                              <div key={i} className="flex justify-between text-[7px] py-0.5 border-b border-slate-100">
-                                <span className="truncate max-w-[90px]">{dp.label}</span>
-                                <span className="font-bold text-emerald-600">{dp.ms} MS</span>
-                              </div>
-                            ))}
+                          <div className="border border-slate-200 rounded overflow-hidden max-h-[150px] overflow-y-auto">
+                            <table className="w-full text-[7px] text-left">
+                              <thead className="bg-[#0E2340] text-white sticky top-0">
+                                <tr>
+                                  <th className="p-1">No</th>
+                                  <th className="p-1">Departemen</th>
+                                  <th className="p-1 text-center">Total</th>
+                                  <th className="p-1 text-center">MS</th>
+                                  <th className="p-1 text-center">US</th>
+                                  <th className="p-1 text-right">% MS</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {byDepartment.map((dp, i) => {
+                                  const total = dp.ms + dp.us;
+                                  const pct = total > 0 ? (dp.ms / total) * 100 : 0;
+                                  return (
+                                    <tr key={i} className={i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}>
+                                      <td className="p-1 text-slate-400">{i + 1}</td>
+                                      <td className="p-1 font-semibold text-slate-800">{dp.label}</td>
+                                      <td className="p-1 text-center">{total}</td>
+                                      <td className="p-1 text-center text-emerald-600 font-bold">{dp.ms}</td>
+                                      <td className="p-1 text-center text-rose-600 font-bold">{dp.us}</td>
+                                      <td className="p-1 text-right font-bold">{pct.toFixed(1)}%</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+
+                        {/* Rekapitulasi Level Jabatan & Persebaran Grade */}
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="border border-slate-200 rounded p-1.5 bg-slate-50/50">
+                            <p className="font-bold text-[7.5px] mb-1 text-[#0E2340] uppercase">Kategori Jabatan</p>
+                            <div className="space-y-1 max-h-[85px] overflow-y-auto">
+                              {byPosition.map((pos, i) => {
+                                const total = pos.manpower;
+                                const pct = (pos.resultPercent || 0) * 100;
+                                return (
+                                  <div key={i} className="flex justify-between items-center text-[6.5px] py-0.5 border-b border-slate-200/60">
+                                    <span className="truncate max-w-[100px] font-medium text-slate-700">{pos.label}</span>
+                                    <span className="font-bold text-slate-800">{pos.ok}/{total} ({pct.toFixed(0)}%)</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="border border-slate-200 rounded p-1.5 bg-slate-50/50">
+                            <p className="font-bold text-[7.5px] mb-1 text-[#0E2340] uppercase">Persebaran Grade</p>
+                            <div className="space-y-1 max-h-[85px] overflow-y-auto">
+                              {byGrade.map((g, i) => {
+                                const total = g.ms + g.us;
+                                const pct = total > 0 ? (g.ms / total) * 100 : 0;
+                                return (
+                                  <div key={i} className="flex justify-between items-center text-[6.5px] py-0.5 border-b border-slate-200/60">
+                                    <span className="font-medium text-slate-700">{g.label}</span>
+                                    <span className="font-bold text-slate-800">{total} org ({pct.toFixed(0)}% MS)</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
                           </div>
                         </div>
                       </div>
                     )}
 
-                    {activePreviewPage === 'page3' && (
-                      <div className="space-y-2.5 animate-fadeIn">
-                        <p className="font-bold text-[8px] text-[#0E2340] uppercase">LEMBAR PENGESAHAN &amp; E-SIGNATURE</p>
-                        <div className="p-3 border border-slate-200 rounded-xl bg-slate-50 text-center space-y-2">
-                          <p className="text-[7.5px] text-slate-500">Mojokerto Factory, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
-                          <div className="w-16 h-16 mx-auto rounded-lg border border-dashed border-slate-300 flex items-center justify-center text-slate-400 text-[8px]">
-                            [E-SIGN HR]
+                    {/* ROSTER TAB: DAFTAR DETAIL EVALUASI SELURUH KARYAWAN */}
+                    {activePreviewPage === 'roster' && (
+                      <div className="space-y-2 animate-fadeIn flex-1 flex flex-col overflow-hidden">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-bold text-[8px] text-[#0E2340] uppercase">
+                              DETAIL EVALUASI SELURUH KARYAWAN ({targetData.length})
+                            </p>
+                            <p className="text-[6.5px] text-slate-500">
+                              Dicetak lengkap dalam dokumen PDF (halaman tabel berkelanjutan)
+                            </p>
                           </div>
-                          <p className="font-bold text-[8.5px] text-slate-900">{signerName}</p>
-                          <p className="text-[7px] text-slate-500">{signerRole}</p>
+                          <span className="text-[6.5px] px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold border border-indigo-200">
+                            {filteredRosterPreview.length} Ditampilkan
+                          </span>
+                        </div>
+
+                        {/* Search in preview */}
+                        <div className="relative">
+                          <i className="fa-solid fa-magnifying-glass absolute left-2 top-1/2 -translate-y-1/2 text-slate-400 text-[8px]"></i>
+                          <input
+                            type="text"
+                            value={rosterSearch}
+                            onChange={(e) => setRosterSearch(e.target.value)}
+                            placeholder="Cari NIK, Nama Karyawan, Departemen..."
+                            className="w-full pl-6 pr-2 py-1 text-[7.5px] rounded border border-slate-200 bg-slate-50 text-slate-800 placeholder-slate-400 outline-none focus:border-[#0E2340]"
+                          />
+                        </div>
+
+                        {/* Table */}
+                        <div className="border border-slate-200 rounded overflow-hidden flex-1 max-h-[260px] overflow-y-auto">
+                          <table className="w-full text-[6.5px] text-left">
+                            <thead className="bg-[#0E2340] text-white sticky top-0">
+                              <tr>
+                                <th className="p-1">No</th>
+                                <th className="p-1">NIK</th>
+                                <th className="p-1">Nama Karyawan</th>
+                                <th className="p-1">Departemen</th>
+                                <th className="p-1">Jabatan</th>
+                                <th className="p-1 text-center">Skor</th>
+                                <th className="p-1 text-center">Std</th>
+                                <th className="p-1 text-center">Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {filteredRosterPreview.slice(0, 100).map((emp, i) => {
+                                const isMS = emp.result === 'MS' || (emp.standard !== null && emp.standard !== undefined && Number(emp.totalScore) >= Number(emp.standard));
+                                return (
+                                  <tr key={i} className={i % 2 === 0 ? 'bg-slate-50' : 'bg-white'}>
+                                    <td className="p-1 text-slate-400">{i + 1}</td>
+                                    <td className="p-1 font-mono text-slate-600">{emp.empId || '-'}</td>
+                                    <td className="p-1 font-semibold text-slate-900 truncate max-w-[90px]">{emp.empName}</td>
+                                    <td className="p-1 text-slate-600 truncate max-w-[70px]">{emp.department || '-'}</td>
+                                    <td className="p-1 text-slate-600 truncate max-w-[70px]">{emp.jabatan || '-'}</td>
+                                    <td className="p-1 text-center font-bold text-slate-800">{emp.totalScore ?? '-'}</td>
+                                    <td className="p-1 text-center text-slate-500">{emp.standard ?? '-'}</td>
+                                    <td className="p-1 text-center">
+                                      <span
+                                        className={`px-1 py-0.2 rounded text-[6px] font-bold ${
+                                          isMS ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                                        }`}
+                                      >
+                                        {isMS ? 'MS' : 'US'}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* ACTION PLAN TAB: KARYAWAN BELUM STANDAR (US) */}
+                    {activePreviewPage === 'action_plan' && (
+                      <div className="space-y-2 animate-fadeIn flex-1 flex flex-col overflow-hidden">
+                        <div>
+                          <p className="font-bold text-[8px] text-rose-700 uppercase flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
+                            ACTION PLAN PEMBINAAN &amp; PELATIHAN KARYAWAN (US)
+                          </p>
+                          <p className="text-[6.5px] text-slate-500">
+                            Daftar prioritas pembinaan untuk mencapai target standar kompetensi (Total: {underStandardEmployees.length} karyawan)
+                          </p>
+                        </div>
+
+                        {underStandardEmployees.length === 0 ? (
+                          <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-center space-y-1 my-auto">
+                            <i className="fa-solid fa-circle-check text-emerald-600 text-lg"></i>
+                            <p className="font-bold text-[8.5px] text-emerald-800">Semua Karyawan Telah Standar (100% MS)</p>
+                            <p className="text-[7px] text-emerald-600">Seluruh karyawan telah melampaui standar kompetensi multi-skill.</p>
+                          </div>
+                        ) : (
+                          <div className="border border-slate-200 rounded overflow-hidden flex-1 max-h-[260px] overflow-y-auto">
+                            <table className="w-full text-[6.5px] text-left">
+                              <thead className="bg-[#E10600] text-white sticky top-0">
+                                <tr>
+                                  <th className="p-1">No</th>
+                                  <th className="p-1">NIK</th>
+                                  <th className="p-1">Nama Karyawan</th>
+                                  <th className="p-1">Departemen</th>
+                                  <th className="p-1 text-center">Skor</th>
+                                  <th className="p-1 text-center">Std</th>
+                                  <th className="p-1 text-center">Gap</th>
+                                  <th className="p-1">Rekomendasi Tindak Lanjut</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {underStandardEmployees.map((emp, i) => {
+                                  const gap = (Number(emp.totalScore) || 0) - (Number(emp.standard) || 0);
+                                  const action =
+                                    gap <= -20
+                                      ? 'Pelatihan Intensif & Rotasi Pendampingan'
+                                      : gap <= -10
+                                      ? 'Mentoring Spesifik Skill Defisit'
+                                      : 'Refreshment Training & Re-evaluasi 1 Bulan';
+                                  return (
+                                    <tr key={i} className={i % 2 === 0 ? 'bg-rose-50/40' : 'bg-white'}>
+                                      <td className="p-1 text-slate-400">{i + 1}</td>
+                                      <td className="p-1 font-mono text-slate-600">{emp.empId || '-'}</td>
+                                      <td className="p-1 font-semibold text-slate-900 truncate max-w-[85px]">{emp.empName}</td>
+                                      <td className="p-1 text-slate-600 truncate max-w-[70px]">{emp.department || '-'}</td>
+                                      <td className="p-1 text-center font-bold text-rose-600">{emp.totalScore ?? '-'}</td>
+                                      <td className="p-1 text-center text-slate-600">{emp.standard ?? '-'}</td>
+                                      <td className="p-1 text-center font-bold text-rose-700">{gap}</td>
+                                      <td className="p-1 text-slate-700 font-medium truncate max-w-[110px]">{action}</td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* PAGE 3: LEMBAR PENGESAHAN & E-SIGN */}
+                    {activePreviewPage === 'page3' && (
+                      <div className="space-y-3 animate-fadeIn my-auto">
+                        <div className="text-center space-y-0.5">
+                          <p className="font-bold text-[9px] text-[#0E2340] uppercase">LEMBAR PENGESAHAN &amp; VERIFIKASI DIGITAL</p>
+                          <p className="text-[7px] text-slate-500">Dokumen Resmi Sistem Monitoring Multi-Skill PT Ajinomoto Indonesia</p>
+                        </div>
+
+                        <div className="p-3 border border-slate-200 rounded-xl bg-slate-50 text-center space-y-2.5">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[7px] font-bold">
+                            <i className="fa-solid fa-certificate text-emerald-600"></i> DIGITALLY VERIFIED DOCUMENT
+                          </div>
+
+                          <p className="text-[7.5px] text-slate-600">
+                            Mojokerto Factory, {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}
+                          </p>
+
+                          <div className="w-24 h-16 mx-auto rounded-lg border border-dashed border-indigo-200 bg-indigo-50/40 flex flex-col items-center justify-center text-indigo-700">
+                            <i className="fa-solid fa-signature text-base text-indigo-600"></i>
+                            <span className="text-[6.5px] font-bold uppercase mt-0.5 tracking-wider">E-Signed HR</span>
+                          </div>
+
+                          <div>
+                            <p className="font-extrabold text-[9px] text-slate-900 uppercase">{signerName}</p>
+                            <p className="text-[7.5px] text-[#B8874B] font-bold">{signerRole}</p>
+                            <p className="text-[6.5px] text-slate-400 mt-0.5">PT Ajinomoto Indonesia - Mojokerto Factory</p>
+                          </div>
+                        </div>
+
+                        <div className="p-2 rounded bg-amber-50/60 border border-amber-200 text-[6.5px] text-amber-900 space-y-0.5">
+                          <p className="font-bold">Catatan Manajemen:</p>
+                          <p>
+                            Dokumen ini sah dihasilkan dari basis data resmi Multi-Skill Monitoring System. Seluruh catatan evaluasi dan action plan wajib diarsipkan dan ditindaklanjuti oleh Department Head terkait.
+                          </p>
                         </div>
                       </div>
                     )}
 
                     {/* PDF Footer */}
-                    <div className="pt-2 border-t border-slate-200 flex justify-between text-[6.5px] text-slate-400">
+                    <div className="pt-2 border-t border-slate-200 flex justify-between text-[6.5px] text-slate-400 shrink-0">
                       <span>Multi-Skill Monitoring System &bull; Ajinomoto Mojokerto Factory</span>
                       <span>
-                        {activePreviewPage === 'page1' && 'Halaman 1 / 3'}
-                        {activePreviewPage === 'page2' && 'Halaman 2 / 3'}
-                        {activePreviewPage === 'page3' && 'Halaman 3 / 3'}
+                        {activePreviewPage === 'page1' && 'Ringkasan & Divisi'}
+                        {activePreviewPage === 'page2' && `Departemen (${byDepartment.length})`}
+                        {activePreviewPage === 'roster' && `Detail Karyawan (${targetData.length})`}
+                        {activePreviewPage === 'action_plan' && `Action Plan US (${totalUS})`}
+                        {activePreviewPage === 'page3' && 'Lembar Pengesahan'}
                       </span>
                     </div>
                   </div>

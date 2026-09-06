@@ -36,13 +36,23 @@ const COLOR_TEXT_DARK: [number, number, number] = [15, 23, 42];   // #0F172A
 const COLOR_TEXT_MUTED: [number, number, number] = [100, 116, 139];// #64748B
 const COLOR_BORDER: [number, number, number] = [226, 232, 240];   // #E2E8F0
 const COLOR_BG_ALT: [number, number, number] = [248, 250, 252];   // #F8FAFC
+const COLOR_BG_US: [number, number, number] = [254, 242, 242];    // #FEF2F2 (Soft Red Highlight for US)
 
 /**
- * Generate official PDF Report matching the exact corporate template of PT Ajinomoto Indonesia - Mojokerto Factory:
- * - Page 1: Kop Banner Navy + Gold Stripe, 4 KPI Stat Cards, Filter Aktif, Rekap per Divisi, Rekap per Department (Part 1)
- * - Page 2: Rekap per Department (Part 2), Rekap per Grade, Rekap per Job Position
- * - Page 3: Official Electronic Sign-off (E-Signed Box, Date, HR Management, Signer)
- * - All Pages: Consistent Footer "Sistem Multi-Skill Monitoring – Ajinomoto Mojokerto Factory" & "Halaman X / Y"
+ * Generate official, highly detailed, and informative PDF Report for PT Ajinomoto Indonesia - Mojokerto Factory.
+ * Features:
+ * - Executive Kop Banner Navy + Gold Accent Stripe with Ajinomoto Emblem & Timestamp
+ * - 4 Key KPI Cards (Total Manpower, Memenuhi Standar MS, Belum Standar US, Persentase Pencapaian)
+ * - Strategic Executive Insights Box (Rata-rata Skor, Top Performer, Dept Ketercapaian Tertinggi, Jumlah Gap US)
+ * - Parameter Filter Terapan
+ * - Rekapitulasi Lengkap Seluruh Divisi (dengan Rata-rata Skor & Status Ketercapaian)
+ * - Rekapitulasi Lengkap Seluruh Department (dengan % Pencapaian & Defisit US)
+ * - Rekapitulasi Standar per Job Position
+ * - Rekapitulasi per Grade
+ * - [CRITICAL DETAIL] Matriks Lengkap Seluruh Karyawan (No, NIK, Nama, Dept, Seksi, Jabatan, Grade, Periode, Skor, Standar, Gap, Status MS/US, PIC)
+ * - [ACTION PLAN] Prioritas Pembinaan & Pelatihan Karyawan Belum Standar (US Focus List)
+ * - Lembar Pengesahan Resmi Bertanda Tangan Elektronik (E-Sign Box)
+ * - Running Corporate Header & Footers with "Halaman X / Y"
  */
 export function generateMultiSkillReportPdf({
   scope,
@@ -55,6 +65,8 @@ export function generateMultiSkillReportPdf({
   approvers
 }: PdfExportOptions): PdfExportResult {
   const targetData = scope === 'filtered' ? filteredEmployees : allEmployees;
+  const isLandscape = orientation === 'landscape';
+
   const doc = new jsPDF({
     unit: 'mm',
     format: 'a4',
@@ -63,7 +75,7 @@ export function generateMultiSkillReportPdf({
 
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
-  const marginX = 14;
+  const marginX = isLandscape ? 12 : 12;
   const contentWidth = pageWidth - marginX * 2;
 
   const now = new Date();
@@ -77,13 +89,79 @@ export function generateMultiSkillReportPdf({
     minute: '2-digit'
   }) + ' WIB';
 
-  const signerName = approvers?.preparedBy?.name || currentUser.name || 'Team HR';
-  const signerRole = approvers?.preparedBy?.title || currentUser.role || 'Admin';
+  const signerName = approvers?.preparedBy?.name || currentUser.name || 'Mahmud Nurdiansyah';
+  const signerRole = approvers?.preparedBy?.title || currentUser.role || 'HR Development Specialist';
 
-  // Compute statistics
+  // Compute primary statistics
   const stats = computeDashboardStats(targetData);
-  const { totalMS, totalUS, totalManpower, percentMS, byDivisi, byDepartment, byGrade, byPosition } = stats;
+  const { totalMS, totalUS, totalManpower, percentMS, byPosition, byGrade } = stats;
   const pctFormatted = (percentMS * 100).toFixed(1) + '%';
+
+  // Compute deeper analytical insights
+  let sumScores = 0;
+  let maxScore = -1;
+  let minScore = 999999;
+  let topEmp: Employee | null = null;
+  const deptMap: Record<string, { label: string; divisi: string; ms: number; us: number; totalScore: number; count: number }> = {};
+  const divisiMap: Record<string, { label: string; ms: number; us: number; totalScore: number; count: number }> = {};
+
+  targetData.forEach((emp) => {
+    const sc = Number(emp.totalScore) || 0;
+    sumScores += sc;
+    if (sc > maxScore) {
+      maxScore = sc;
+      topEmp = emp;
+    }
+    if (sc < minScore) {
+      minScore = sc;
+    }
+
+    // Divisi aggregate
+    const divKey = emp.divisi || '(Tanpa Divisi)';
+    if (!divisiMap[divKey]) {
+      divisiMap[divKey] = { label: divKey, ms: 0, us: 0, totalScore: 0, count: 0 };
+    }
+    divisiMap[divKey].count++;
+    divisiMap[divKey].totalScore += sc;
+    if (emp.result === 'MS') divisiMap[divKey].ms++;
+    else if (emp.result === 'US') divisiMap[divKey].us++;
+
+    // Dept aggregate
+    const deptKey = emp.department || '(Tanpa Department)';
+    if (!deptMap[deptKey]) {
+      deptMap[deptKey] = { label: deptKey, divisi: emp.divisi || '-', ms: 0, us: 0, totalScore: 0, count: 0 };
+    }
+    deptMap[deptKey].count++;
+    deptMap[deptKey].totalScore += sc;
+    if (emp.result === 'MS') deptMap[deptKey].ms++;
+    else if (emp.result === 'US') deptMap[deptKey].us++;
+  });
+
+  const avgScore = targetData.length > 0 ? (sumScores / targetData.length).toFixed(1) : '0';
+  const underStandardList = targetData
+    .filter((e) => e.result === 'US' || (e.standard !== null && e.standard !== undefined && Number(e.totalScore) < Number(e.standard)))
+    .sort((a, b) => {
+      const gapA = (Number(a.totalScore) || 0) - (Number(a.standard) || 0);
+      const gapB = (Number(b.totalScore) || 0) - (Number(b.standard) || 0);
+      return gapA - gapB; // Largest deficit first
+    });
+
+  // Sort Divisi & Department by total manpower descending
+  const sortedDivisi = Object.values(divisiMap).sort((a, b) => b.count - a.count);
+  const sortedDept = Object.values(deptMap).sort((a, b) => b.count - a.count);
+
+  // Identify top performing department
+  let topDept = sortedDept.length > 0 ? sortedDept[0] : null;
+  let highestDeptRate = -1;
+  sortedDept.forEach((d) => {
+    if (d.count >= 2) {
+      const rate = d.ms / d.count;
+      if (rate > highestDeptRate) {
+        highestDeptRate = rate;
+        topDept = d;
+      }
+    }
+  });
 
   let y = 0;
 
@@ -91,7 +169,7 @@ export function generateMultiSkillReportPdf({
   // 1. CORPORATE HEADER (PAGE 1)
   // =========================================================================
   const drawHeader = () => {
-    const headerHeight = 22;
+    const headerHeight = isLandscape ? 20 : 22;
     // Dark Navy Background
     doc.setFillColor(...COLOR_NAVY);
     doc.rect(0, 0, pageWidth, headerHeight, 'F');
@@ -102,7 +180,7 @@ export function generateMultiSkillReportPdf({
 
     // Logo on Left side: Ajinomoto Red Monogram & Badge
     const logoX = marginX;
-    const logoY = 3.5;
+    const logoY = isLandscape ? 2.5 : 3.5;
 
     // Small "Eat Well, Live Well." text above
     doc.setFont('helvetica', 'normal');
@@ -125,34 +203,47 @@ export function generateMultiSkillReportPdf({
     doc.text('AJINOMOTO', logoX + 7.2, logoY + 12.8, { align: 'center' });
 
     // Title Text next to logo
-    const titleX = logoX + 20;
+    const titleX = logoX + 21;
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
+    doc.setFontSize(isLandscape ? 12 : 13);
     doc.setTextColor(255, 255, 255);
-    doc.text('AJINOMOTO MOJOKERTO FACTORY', titleX, 10);
+    doc.text('AJINOMOTO MOJOKERTO FACTORY', titleX, isLandscape ? 8.5 : 9.5);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8.5);
+    doc.setFontSize(isLandscape ? 8 : 8.5);
     doc.setTextColor(226, 232, 240);
-    doc.text('Laporan Monitoring Multi-Skill Karyawan & Manajer', titleX, 16);
+    const subtitleReport = reportType === 'employee_detail'
+      ? 'Laporan Detail Evaluasi & Analisis Gap Multi-Skill Karyawan'
+      : reportType === 'executive'
+      ? 'Laporan Ringkasan Eksekutif Kinerja Multi-Skill Organisasi'
+      : 'Laporan Komprehensif Monitoring & Evaluasi Multi-Skill Karyawan';
+    doc.text(subtitleReport, titleX, isLandscape ? 14 : 15.5);
 
-    y = headerHeight + 6.5;
+    // Right Metadata: Generation Date & Signer
+    const metaX = pageWidth - marginX;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(203, 213, 225);
+    doc.text(`Dicetak: ${tanggalStr}, ${jamStr}`, metaX, isLandscape ? 8.5 : 9.5, { align: 'right' });
+    doc.text(`Oleh: ${signerName} (${signerRole})`, metaX, isLandscape ? 14 : 15.5, { align: 'right' });
+
+    y = headerHeight + 5.5;
   };
 
   // =========================================================================
-  // 2. KPI STAT CARDS (4 CARDS IN 1 ROW)
+  // 2. KPI STAT CARDS (4 CARDS)
   // =========================================================================
   const drawKpiCards = () => {
     const cardCount = 4;
     const gap = 3.5;
     const cardW = (contentWidth - gap * (cardCount - 1)) / cardCount;
-    const cardH = 14.5;
+    const cardH = 13.5;
 
     const cards = [
-      { val: String(totalManpower), label: 'Total Karyawan', color: COLOR_NAVY },
-      { val: String(totalMS), label: 'Standar (MS)', color: COLOR_GREEN },
-      { val: String(totalUS), label: 'Belum Standar (US)', color: COLOR_DANGER_RED },
-      { val: pctFormatted, label: 'Pencapaian', color: COLOR_GOLD }
+      { val: String(totalManpower), label: 'Total Manpower', sub: `${targetData.length} Data Dievaluasi`, color: COLOR_NAVY },
+      { val: String(totalMS), label: 'Standar (MS)', sub: `${pctFormatted} Memenuhi Standar`, color: COLOR_GREEN },
+      { val: String(totalUS), label: 'Belum Standar (US)', sub: `${totalManpower > 0 ? ((totalUS / totalManpower) * 100).toFixed(1) : 0}% Perlu Pembinaan`, color: COLOR_DANGER_RED },
+      { val: pctFormatted, label: 'Pencapaian Mutu', sub: `Target Pabrik: ≥80%`, color: COLOR_GOLD }
     ];
 
     cards.forEach((c, i) => {
@@ -170,308 +261,596 @@ export function generateMultiSkillReportPdf({
 
       // Value (Big Bold)
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
+      doc.setFontSize(13);
       doc.setTextColor(...COLOR_TEXT_DARK);
-      doc.text(c.val, cx + 5, y + 6.8);
+      doc.text(c.val, cx + 4.5, y + 5.8);
 
-      // Label (Small Gray)
-      doc.setFont('helvetica', 'normal');
+      // Label (Small Bold)
+      doc.setFont('helvetica', 'bold');
       doc.setFontSize(6.8);
+      doc.setTextColor(...COLOR_TEXT_DARK);
+      doc.text(c.label, cx + 4.5, y + 9.5);
+
+      // Subtitle (Micro Muted)
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5.5);
       doc.setTextColor(...COLOR_TEXT_MUTED);
-      doc.text(c.label, cx + 5, y + 11.5);
+      doc.text(c.sub, cx + 4.5, y + 12.3);
     });
 
-    y += cardH + 6;
+    y += cardH + 4;
   };
 
   // =========================================================================
-  // 3. FILTER AKTIF
+  // 3. EXECUTIVE ANALYTICAL HIGHLIGHTS BOX & FILTER BAR
   // =========================================================================
-  const drawFilterAktif = () => {
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(6.8);
-    doc.setTextColor(...COLOR_GOLD);
-    doc.text('FILTER AKTIF', marginX, y);
-    y += 3.8;
+  const drawAnalyticalHighlightsAndFilter = () => {
+    // Strategic Highlights Banner Box
+    const boxH = 9.5;
+    doc.setFillColor(...COLOR_BG_ALT);
+    doc.setDrawColor(...COLOR_BORDER);
+    doc.setLineWidth(0.2);
+    doc.roundedRect(marginX, y, contentWidth, boxH, 1, 1, 'FD');
 
+    // Left Accent bar
+    doc.setFillColor(...COLOR_GOLD);
+    doc.rect(marginX, y, 1.2, boxH, 'F');
+
+    // 4 Key Analytics Columns inside Box
+    const colW = contentWidth / 4;
+    const topEmpName = topEmp ? (topEmp.empName?.length > 15 ? topEmp.empName.slice(0, 15) + '..' : topEmp.empName) : '-';
+    const topDeptName = topDept ? (topDept.label?.length > 16 ? topDept.label.slice(0, 16) + '..' : topDept.label) : '-';
+
+    const highlights = [
+      { label: 'RATA-RATA SKOR', val: `${avgScore} Poin` },
+      { label: 'SKOR TERTINGGI', val: `${maxScore >= 0 ? maxScore : 0} (${topEmpName})` },
+      { label: 'DEPT TERBAIK', val: `${topDeptName} (${highestDeptRate >= 0 ? (highestDeptRate * 100).toFixed(0) + '%' : '-'})` },
+      { label: 'KEBUTUHAN TRAINING', val: `${underStandardList.length} Karyawan (US)` }
+    ];
+
+    highlights.forEach((h, i) => {
+      const hx = marginX + i * colW + 4;
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(5.5);
+      doc.setTextColor(...COLOR_GOLD);
+      doc.text(h.label, hx, y + 3.8);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.8);
+      doc.setTextColor(...COLOR_TEXT_DARK);
+      doc.text(h.val, hx, y + 7.5);
+    });
+
+    y += boxH + 3.5;
+
+    // Filter Parameters String
     const uniqueTahun = Array.from(new Set(targetData.map((e) => e.tahun).filter(Boolean)));
     const uniqueBulan = Array.from(new Set(targetData.map((e) => e.bulan).filter(Boolean)));
 
     const thnStr = filters.tahun.length
       ? filters.tahun.join(', ')
-      : (uniqueTahun.length ? uniqueTahun.join(', ') : '2026');
+      : (uniqueTahun.length ? uniqueTahun.join(', ') : 'Semua Tahun');
 
     const blnStr = filters.bulan.length
       ? filters.bulan.map((b) => BULAN_LABELS[Number(b) - 1] || b).join(', ')
       : (uniqueBulan.length ? uniqueBulan.map((b) => BULAN_LABELS[Number(b) - 1] || b).join(', ') : 'Semua Periode');
 
-    const divStr = filters.divisi.length ? filters.divisi.join(', ') : 'Semua';
-    const deptStr = filters.department.length ? filters.department.join(', ') : 'Semua';
-    const jabStr = filters.jabatan.length ? filters.jabatan.join(', ') : 'Semua';
+    const divStr = filters.divisi.length ? filters.divisi.join(', ') : 'Semua Divisi';
+    const deptStr = filters.department.length ? filters.department.join(', ') : 'Semua Department';
+    const jabStr = filters.jabatan.length ? filters.jabatan.join(', ') : 'Semua Jabatan';
 
-    const filterText = `Tahun: ${thnStr} | Bulan: ${blnStr} | Divisi: ${divStr} | Department: ${deptStr} | Jabatan: ${jabStr}`;
+    const filterText = `Parameter: Periode ${blnStr} ${thnStr} | Divisi: ${divStr} | Department: ${deptStr} | Jabatan: ${jabStr} | Total Cakupan: ${targetData.length} Karyawan`;
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.8);
-    doc.setTextColor(51, 65, 85);
+    doc.setFontSize(6.2);
+    doc.setTextColor(...COLOR_TEXT_MUTED);
     doc.text(filterText, marginX, y);
 
-    y += 6.5;
+    y += 4.5;
   };
 
   // =========================================================================
-  // SECTION TITLE HELPER (GOLD SQUARE + HEADING)
+  // SECTION HEADING HELPER
   // =========================================================================
-  const drawSectionHeading = (title: string) => {
-    // Check if near bottom of page
+  const drawSectionHeading = (title: string, badgeText?: string) => {
     if (y > pageHeight - 35) {
       doc.addPage();
       y = 16;
     }
 
-    // Gold Square Icon
+    // Gold Square
     doc.setFillColor(...COLOR_GOLD);
     doc.rect(marginX, y - 2.8, 2.5, 2.5, 'F');
 
     // Title Text
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setTextColor(...COLOR_TEXT_DARK);
     doc.text(title, marginX + 4.2, y - 0.7);
+
+    if (badgeText) {
+      const titleWidth = doc.getTextWidth(title);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.2);
+      doc.setTextColor(...COLOR_TEXT_MUTED);
+      doc.text(`(${badgeText})`, marginX + 5 + titleWidth, y - 0.7);
+    }
 
     y += 2.5;
   };
 
   // =========================================================================
-  // 4. REKAP PER DIVISI TABLE (PAGE 1)
+  // 4. REKAPITULASI LENGKAP PER DIVISI (ALL DIVISIONS WITH METRICS)
   // =========================================================================
   const drawDivisiTable = () => {
-    drawSectionHeading('Rekap per Divisi');
+    drawSectionHeading('Rekapitulasi Kinerja per Divisi', `${sortedDivisi.length} Divisi Aktif`);
 
-    const divisiRows = byDivisi.map((d) => {
+    const divisiRows = sortedDivisi.map((d) => {
       const tot = d.ms + d.us;
-      return [d.label, String(d.ms), String(d.us), String(tot)];
+      const pct = tot > 0 ? ((d.ms / tot) * 100).toFixed(1) + '%' : '0.0%';
+      const avgSc = d.count > 0 ? (d.totalScore / d.count).toFixed(1) : '0';
+      const status = (d.ms / (tot || 1)) >= 0.8 ? 'Tercapai (≥80%)' : 'Perlu Peningkatan';
+      return [d.label, String(tot), String(d.ms), String(d.us), pct, avgSc, status];
     });
+
+    // Baris Total Akumulasi
+    divisiRows.push([
+      'TOTAL PABRIK',
+      String(totalManpower),
+      String(totalMS),
+      String(totalUS),
+      pctFormatted,
+      avgScore,
+      percentMS >= 0.8 ? 'Tercapai' : 'Di Bawah Target'
+    ]);
 
     autoTable(doc, {
       startY: y,
-      head: [['Divisi', 'MS', 'US', 'Total']],
+      head: [['Nama Divisi', 'Total MP', 'MS', 'US', '% Pencapaian', 'Rata-rata Skor', 'Status Evaluasi']],
       body: divisiRows,
       theme: 'plain',
       headStyles: {
         fillColor: COLOR_NAVY,
         textColor: [255, 255, 255],
         fontStyle: 'bold',
-        fontSize: 7.2,
-        cellPadding: { top: 1.8, bottom: 1.8, left: 3, right: 3 }
+        fontSize: 6.8,
+        cellPadding: { top: 1.6, bottom: 1.6, left: 2.5, right: 2.5 }
       },
       columnStyles: {
-        0: { halign: 'left', cellWidth: contentWidth * 0.65 },
-        1: { halign: 'center', cellWidth: contentWidth * 0.11 },
-        2: { halign: 'center', cellWidth: contentWidth * 0.11 },
-        3: { halign: 'center', cellWidth: contentWidth * 0.13 }
+        0: { halign: 'left', cellWidth: contentWidth * 0.34, fontStyle: 'bold' },
+        1: { halign: 'center', cellWidth: contentWidth * 0.10 },
+        2: { halign: 'center', cellWidth: contentWidth * 0.09, textColor: COLOR_GREEN },
+        3: { halign: 'center', cellWidth: contentWidth * 0.09, textColor: COLOR_DANGER_RED },
+        4: { halign: 'center', cellWidth: contentWidth * 0.13, fontStyle: 'bold' },
+        5: { halign: 'center', cellWidth: contentWidth * 0.11 },
+        6: { halign: 'center', cellWidth: contentWidth * 0.14 }
       },
       bodyStyles: {
-        fontSize: 6.8,
+        fontSize: 6.5,
         textColor: COLOR_TEXT_DARK,
-        cellPadding: { top: 1.3, bottom: 1.3, left: 3, right: 3 }
+        cellPadding: { top: 1.3, bottom: 1.3, left: 2.5, right: 2.5 }
       },
       alternateRowStyles: {
         fillColor: COLOR_BG_ALT
       },
-      margin: { left: marginX, right: marginX }
+      didParseCell: (data) => {
+        // Bold the summary row
+        if (data.row.index === divisiRows.length - 1) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [241, 245, 249];
+          data.cell.styles.textColor = COLOR_NAVY;
+        }
+      },
+      margin: { left: marginX, right: marginX, top: 14, bottom: 15 }
     });
 
-    y = ((doc as any).lastAutoTable?.finalY ?? y) + 6.5;
+    y = ((doc as any).lastAutoTable?.finalY ?? y) + 5.5;
   };
 
   // =========================================================================
-  // 5. REKAP PER DEPARTMENT TABLE (PAGE 1 OVERFLOWS TO PAGE 2)
+  // 5. REKAPITULASI LENGKAP PER DEPARTMENT (ALL DEPARTMENTS WITHOUT TRUNCATION)
   // =========================================================================
   const drawDepartmentTable = () => {
-    drawSectionHeading('Rekap per Department');
+    drawSectionHeading('Rekapitulasi Kinerja per Department', `${sortedDept.length} Department`);
 
-    const deptRows = byDepartment.map((d) => {
+    const deptRows = sortedDept.map((d) => {
       const tot = d.ms + d.us;
-      return [d.label, String(d.ms), String(d.us), String(tot)];
+      const pct = tot > 0 ? ((d.ms / tot) * 100).toFixed(1) + '%' : '0.0%';
+      const avgSc = d.count > 0 ? (d.totalScore / d.count).toFixed(1) : '0';
+      const gapUs = d.us > 0 ? `${d.us} Orang (US)` : 'Sesuai Target';
+      return [d.label, d.divisi, String(tot), String(d.ms), String(d.us), pct, avgSc, gapUs];
     });
+
+    // Baris Total
+    deptRows.push([
+      'TOTAL KESELURUHAN',
+      '-',
+      String(totalManpower),
+      String(totalMS),
+      String(totalUS),
+      pctFormatted,
+      avgScore,
+      `${totalUS} Karyawan US`
+    ]);
 
     autoTable(doc, {
       startY: y,
-      head: [['Department', 'MS', 'US', 'Total']],
+      head: [['Department', 'Divisi', 'Total MP', 'MS', 'US', '% Pencapaian', 'Rata-rata Skor', 'Defisit Pelatihan']],
       body: deptRows,
       theme: 'plain',
       headStyles: {
         fillColor: COLOR_NAVY,
         textColor: [255, 255, 255],
         fontStyle: 'bold',
-        fontSize: 7.2,
-        cellPadding: { top: 1.8, bottom: 1.8, left: 3, right: 3 }
+        fontSize: 6.8,
+        cellPadding: { top: 1.6, bottom: 1.6, left: 2.2, right: 2.2 }
       },
       columnStyles: {
-        0: { halign: 'left', cellWidth: contentWidth * 0.65 },
-        1: { halign: 'center', cellWidth: contentWidth * 0.11 },
-        2: { halign: 'center', cellWidth: contentWidth * 0.11 },
-        3: { halign: 'center', cellWidth: contentWidth * 0.13 }
+        0: { halign: 'left', cellWidth: contentWidth * 0.28, fontStyle: 'bold' },
+        1: { halign: 'left', cellWidth: contentWidth * 0.18 },
+        2: { halign: 'center', cellWidth: contentWidth * 0.08 },
+        3: { halign: 'center', cellWidth: contentWidth * 0.07, textColor: COLOR_GREEN },
+        4: { halign: 'center', cellWidth: contentWidth * 0.07, textColor: COLOR_DANGER_RED },
+        5: { halign: 'center', cellWidth: contentWidth * 0.11, fontStyle: 'bold' },
+        6: { halign: 'center', cellWidth: contentWidth * 0.09 },
+        7: { halign: 'center', cellWidth: contentWidth * 0.12 }
       },
       bodyStyles: {
-        fontSize: 6.8,
+        fontSize: 6.3,
         textColor: COLOR_TEXT_DARK,
-        cellPadding: { top: 1.3, bottom: 1.3, left: 3, right: 3 }
+        cellPadding: { top: 1.2, bottom: 1.2, left: 2.2, right: 2.2 }
       },
       alternateRowStyles: {
         fillColor: COLOR_BG_ALT
       },
       pageBreak: 'auto',
-      margin: { left: marginX, right: marginX, top: 14, bottom: 16 }
+      didParseCell: (data) => {
+        if (data.row.index === deptRows.length - 1) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = [241, 245, 249];
+          data.cell.styles.textColor = COLOR_NAVY;
+        }
+      },
+      margin: { left: marginX, right: marginX, top: 14, bottom: 15 }
     });
 
-    y = ((doc as any).lastAutoTable?.finalY ?? y) + 6.5;
+    y = ((doc as any).lastAutoTable?.finalY ?? y) + 5.5;
   };
 
   // =========================================================================
-  // 6. REKAP PER GRADE TABLE (PAGE 2)
-  // =========================================================================
-  const drawGradeTable = () => {
-    drawSectionHeading('Rekap per Grade');
-
-    // Standard ordered grades as in template: M5, M4, M3, M2, M1, ST5, ST4, ST3, REM1, REM2, REM3, REM4
-    const standardGrades = ['M5', 'M4', 'M3', 'M2', 'M1', 'ST5', 'ST4', 'ST3', 'REM1', 'REM2', 'REM3', 'REM4'];
-    const gradeMap = new Map<string, { ms: number; us: number }>();
-    byGrade.forEach((g) => gradeMap.set(g.label, { ms: g.ms, us: g.us }));
-
-    const gradeRows = standardGrades.map((gr) => {
-      const data = gradeMap.get(gr) || { ms: 0, us: 0 };
-      const tot = data.ms + data.us;
-      return [gr, String(data.ms), String(data.us), String(tot)];
-    });
-
-    // Also include any extra grades present in data
-    byGrade.forEach((g) => {
-      if (!standardGrades.includes(g.label)) {
-        gradeRows.push([g.label, String(g.ms), String(g.us), String(g.ms + g.us)]);
-      }
-    });
-
-    autoTable(doc, {
-      startY: y,
-      head: [['Grade', 'MS', 'US', 'Total']],
-      body: gradeRows,
-      theme: 'plain',
-      headStyles: {
-        fillColor: COLOR_NAVY,
-        textColor: [255, 255, 255],
-        fontStyle: 'bold',
-        fontSize: 7.2,
-        cellPadding: { top: 1.8, bottom: 1.8, left: 3, right: 3 }
-      },
-      columnStyles: {
-        0: { halign: 'left', cellWidth: contentWidth * 0.65 },
-        1: { halign: 'center', cellWidth: contentWidth * 0.11 },
-        2: { halign: 'center', cellWidth: contentWidth * 0.11 },
-        3: { halign: 'center', cellWidth: contentWidth * 0.13 }
-      },
-      bodyStyles: {
-        fontSize: 6.8,
-        textColor: COLOR_TEXT_DARK,
-        cellPadding: { top: 1.3, bottom: 1.3, left: 3, right: 3 }
-      },
-      alternateRowStyles: {
-        fillColor: COLOR_BG_ALT
-      },
-      margin: { left: marginX, right: marginX, top: 14, bottom: 16 }
-    });
-
-    y = ((doc as any).lastAutoTable?.finalY ?? y) + 6.5;
-  };
-
-  // =========================================================================
-  // 7. REKAP PER JOB POSITION TABLE (PAGE 2)
+  // 6. REKAPITULASI PER JOB POSITION & STANDAR THRESHOLD
   // =========================================================================
   const drawJobPositionTable = () => {
-    drawSectionHeading('Rekap per Job Position');
+    drawSectionHeading('Rekapitulasi Standar per Kategori Jabatan', 'Threshold Kompetensi');
 
     const posRows = (byPosition || []).map((p) => {
+      const targetPercentStr = ((p?.target ?? 0) * 100).toFixed(0) + '%';
+      const realisasiPercentStr = ((p?.resultPercent ?? 0) * 100).toFixed(1) + '%';
+      const isTargetMet = (p?.resultPercent ?? 0) >= (p?.target ?? 0);
       return [
         p?.label || '',
-        String(p?.threshold ?? 0),
-        ((p?.target ?? 0) * 100).toFixed(1),
+        `≥ ${p?.threshold ?? 0} Seksi`,
+        targetPercentStr,
+        String(p?.manpower ?? 0),
         String(p?.ok ?? 0),
         String(p?.notOk ?? 0),
-        String(p?.manpower ?? 0),
-        ((p?.resultPercent ?? 0) * 100).toFixed(1)
+        realisasiPercentStr,
+        isTargetMet ? 'Tercapai' : 'Di Bawah Target'
       ];
     });
 
     autoTable(doc, {
       startY: y,
-      head: [['Job Position', 'Threshold', 'Target (%)', 'OK', 'Not OK', 'Manpower', 'Result (%)']],
+      head: [['Kategori Jabatan', 'Standar Threshold', 'Target (%)', 'Manpower', 'OK (MS)', 'Not OK (US)', 'Realisasi (%)', 'Status Target']],
       body: posRows,
       theme: 'plain',
       headStyles: {
         fillColor: COLOR_NAVY,
         textColor: [255, 255, 255],
         fontStyle: 'bold',
-        fontSize: 7.2,
-        cellPadding: { top: 1.8, bottom: 1.8, left: 2.5, right: 2.5 }
+        fontSize: 6.8,
+        cellPadding: { top: 1.6, bottom: 1.6, left: 2.2, right: 2.2 }
       },
       columnStyles: {
-        0: { halign: 'left', cellWidth: contentWidth * 0.28 },
+        0: { halign: 'left', cellWidth: contentWidth * 0.26, fontStyle: 'bold' },
         1: { halign: 'center', cellWidth: contentWidth * 0.12 },
-        2: { halign: 'center', cellWidth: contentWidth * 0.12 },
-        3: { halign: 'center', cellWidth: contentWidth * 0.12 },
-        4: { halign: 'center', cellWidth: contentWidth * 0.12 },
-        5: { halign: 'center', cellWidth: contentWidth * 0.12 },
-        6: { halign: 'center', cellWidth: contentWidth * 0.12 }
+        2: { halign: 'center', cellWidth: contentWidth * 0.10 },
+        3: { halign: 'center', cellWidth: contentWidth * 0.10 },
+        4: { halign: 'center', cellWidth: contentWidth * 0.10, textColor: COLOR_GREEN },
+        5: { halign: 'center', cellWidth: contentWidth * 0.10, textColor: COLOR_DANGER_RED },
+        6: { halign: 'center', cellWidth: contentWidth * 0.11, fontStyle: 'bold' },
+        7: { halign: 'center', cellWidth: contentWidth * 0.11 }
       },
       bodyStyles: {
-        fontSize: 6.8,
+        fontSize: 6.4,
         textColor: COLOR_TEXT_DARK,
-        cellPadding: { top: 1.4, bottom: 1.4, left: 2.5, right: 2.5 }
+        cellPadding: { top: 1.3, bottom: 1.3, left: 2.2, right: 2.2 }
       },
       alternateRowStyles: {
         fillColor: COLOR_BG_ALT
       },
-      margin: { left: marginX, right: marginX, top: 14, bottom: 16 }
+      margin: { left: marginX, right: marginX, top: 14, bottom: 15 }
     });
 
-    y = ((doc as any).lastAutoTable?.finalY ?? y) + 8;
+    y = ((doc as any).lastAutoTable?.finalY ?? y) + 5.5;
   };
 
   // =========================================================================
-  // 8. ELECTRONIC SIGN-OFF BLOCK (PAGE 3)
+  // 7. REKAPITULASI PER GRADE
+  // =========================================================================
+  const drawGradeTable = () => {
+    drawSectionHeading('Rekapitulasi Sebaran Grade Karyawan', `${byGrade.length} Grade`);
+
+    const gradeRows = byGrade.map((gr) => {
+      const tot = gr.ms + gr.us;
+      const pct = tot > 0 ? ((gr.ms / tot) * 100).toFixed(1) + '%' : '0.0%';
+      return [gr.label, String(tot), String(gr.ms), String(gr.us), pct];
+    });
+
+    autoTable(doc, {
+      startY: y,
+      head: [['Grade Karyawan', 'Total Manpower', 'MS (Standar)', 'US (Belum Standar)', '% Ketercapaian']],
+      body: gradeRows,
+      theme: 'plain',
+      headStyles: {
+        fillColor: COLOR_NAVY,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 6.8,
+        cellPadding: { top: 1.6, bottom: 1.6, left: 2.5, right: 2.5 }
+      },
+      columnStyles: {
+        0: { halign: 'left', cellWidth: contentWidth * 0.36, fontStyle: 'bold' },
+        1: { halign: 'center', cellWidth: contentWidth * 0.16 },
+        2: { halign: 'center', cellWidth: contentWidth * 0.16, textColor: COLOR_GREEN },
+        3: { halign: 'center', cellWidth: contentWidth * 0.16, textColor: COLOR_DANGER_RED },
+        4: { halign: 'center', cellWidth: contentWidth * 0.16, fontStyle: 'bold' }
+      },
+      bodyStyles: {
+        fontSize: 6.4,
+        textColor: COLOR_TEXT_DARK,
+        cellPadding: { top: 1.2, bottom: 1.2, left: 2.5, right: 2.5 }
+      },
+      alternateRowStyles: {
+        fillColor: COLOR_BG_ALT
+      },
+      margin: { left: marginX, right: marginX, top: 14, bottom: 15 }
+    });
+
+    y = ((doc as any).lastAutoTable?.finalY ?? y) + 6;
+  };
+
+  // =========================================================================
+  // 8. CRITICAL: DAFTAR DETAIL EVALUASI SELURUH KARYAWAN (FULL ROSTER)
+  // =========================================================================
+  const drawEmployeeRosterTable = () => {
+    // Check if new page is needed for starting employee detail section cleanly
+    if (y > pageHeight - 45) {
+      doc.addPage();
+      y = 16;
+    }
+
+    drawSectionHeading('Daftar Detail Evaluasi Multi-Skill Seluruh Karyawan', `${targetData.length} Karyawan Terdaftar`);
+
+    const rosterRows = targetData.map((emp, idx) => {
+      const bLabel = emp.bulan ? BULAN_LABELS[emp.bulan - 1] || String(emp.bulan) : '-';
+      const score = Number(emp.totalScore) || 0;
+      const std = emp.standard !== null && emp.standard !== undefined ? Number(emp.standard) : null;
+      const gapVal = std !== null ? score - std : (emp.gap !== null && emp.gap !== undefined ? Number(emp.gap) : 0);
+      const gapStr = gapVal > 0 ? `+${gapVal}` : String(gapVal);
+      const periode = `${bLabel.slice(0, 3)} ${emp.tahun || ''}`.trim();
+
+      return [
+        String(idx + 1),
+        emp.empId || `EMP-${idx + 1}`,
+        emp.empName || '-',
+        emp.department || emp.divisi || '-',
+        emp.section || '-',
+        emp.jabatan || '-',
+        emp.grade || '-',
+        periode,
+        String(score),
+        std !== null ? String(std) : '-',
+        gapStr,
+        emp.result || (score >= (std || 0) ? 'MS' : 'US'),
+        emp.pic || '-'
+      ];
+    });
+
+    autoTable(doc, {
+      startY: y,
+      head: [['No', 'NIK', 'Nama Karyawan', 'Department', 'Seksi', 'Jabatan', 'Grade', 'Periode', 'Skor', 'Std', 'Gap', 'Status', 'PIC']],
+      body: rosterRows,
+      theme: 'plain',
+      showHead: 'everyPage',
+      headStyles: {
+        fillColor: COLOR_NAVY,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 6.2,
+        cellPadding: { top: 1.5, bottom: 1.5, left: 1.8, right: 1.8 }
+      },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: contentWidth * 0.035 },
+        1: { halign: 'left', fontStyle: 'bold', cellWidth: contentWidth * 0.085 },
+        2: { halign: 'left', fontStyle: 'bold', cellWidth: contentWidth * 0.16 },
+        3: { halign: 'left', cellWidth: contentWidth * 0.12 },
+        4: { halign: 'left', cellWidth: contentWidth * 0.10 },
+        5: { halign: 'left', cellWidth: contentWidth * 0.12 },
+        6: { halign: 'center', cellWidth: contentWidth * 0.055 },
+        7: { halign: 'center', cellWidth: contentWidth * 0.065 },
+        8: { halign: 'center', fontStyle: 'bold', cellWidth: contentWidth * 0.05 },
+        9: { halign: 'center', cellWidth: contentWidth * 0.05 },
+        10: { halign: 'center', fontStyle: 'bold', cellWidth: contentWidth * 0.05 },
+        11: { halign: 'center', fontStyle: 'bold', cellWidth: contentWidth * 0.055 },
+        12: { halign: 'left', cellWidth: contentWidth * 0.06 }
+      },
+      bodyStyles: {
+        fontSize: 5.8,
+        textColor: COLOR_TEXT_DARK,
+        cellPadding: { top: 1.2, bottom: 1.2, left: 1.8, right: 1.8 }
+      },
+      alternateRowStyles: {
+        fillColor: COLOR_BG_ALT
+      },
+      didParseCell: (data) => {
+        // Highlight US rows with soft red background and red text
+        if (data.section === 'body') {
+          const rawRow = rosterRows[data.row.index];
+          const statusVal = rawRow ? rawRow[11] : '';
+          if (statusVal === 'US') {
+            if (data.column.index === 11) {
+              data.cell.styles.textColor = COLOR_DANGER_RED;
+            } else if (data.column.index === 10) {
+              data.cell.styles.textColor = COLOR_DANGER_RED;
+            }
+          } else if (statusVal === 'MS' && data.column.index === 11) {
+            data.cell.styles.textColor = COLOR_GREEN;
+          }
+        }
+      },
+      pageBreak: 'auto',
+      margin: { left: marginX, right: marginX, top: 14, bottom: 15 }
+    });
+
+    y = ((doc as any).lastAutoTable?.finalY ?? y) + 6;
+  };
+
+  // =========================================================================
+  // 9. ACTION PLAN: DAFTAR PRIORITAS PEMBINAAN KARYAWAN BELUM STANDAR (US)
+  // =========================================================================
+  const drawActionPlanUnderStandardTable = () => {
+    if (underStandardList.length === 0) {
+      // If 100% MS, print a recognition achievement box
+      if (y > pageHeight - 30) {
+        doc.addPage();
+        y = 16;
+      }
+      drawSectionHeading('Analisis Kebutuhan Pelatihan & Pembinaan Karyawan (US)');
+      doc.setFillColor(240, 253, 244);
+      doc.setDrawColor(187, 247, 208);
+      doc.roundedRect(marginX, y, contentWidth, 12, 1.2, 1.2, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(22, 101, 52);
+      doc.text('✓ Seluruh Karyawan Telah Memenuhi Standar Kompetensi Multi-Skill (100% MS)', marginX + 5, y + 5);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(21, 128, 61);
+      doc.text('Tidak ditemukan karyawan berstatus Belum Standar (US) pada filter periode ini. Pertahankan program pemeliharaan kompetensi berkelanjutan.', marginX + 5, y + 9);
+      y += 18;
+      return;
+    }
+
+    if (y > pageHeight - 40) {
+      doc.addPage();
+      y = 16;
+    }
+
+    drawSectionHeading('Prioritas Pembinaan & Pelatihan Karyawan Belum Standar (US)', `${underStandardList.length} Karyawan Memerlukan Coaching`);
+
+    const usRows = underStandardList.map((emp, idx) => {
+      const score = Number(emp.totalScore) || 0;
+      const std = emp.standard !== null && emp.standard !== undefined ? Number(emp.standard) : 0;
+      const gapVal = score - std;
+      const rec = Math.abs(gapVal) >= 10
+        ? 'Pelatihan Intensif Multi-Skill & Re-evaluasi 30 Hari'
+        : 'Pendampingan On-the-Job Training (OJT) & Coaching PIC';
+
+      return [
+        String(idx + 1),
+        emp.empId || '-',
+        emp.empName || '-',
+        emp.department || '-',
+        emp.section || '-',
+        emp.jabatan || '-',
+        emp.grade || '-',
+        String(score),
+        String(std),
+        String(gapVal),
+        rec,
+        emp.pic || '-'
+      ];
+    });
+
+    autoTable(doc, {
+      startY: y,
+      head: [['No', 'NIK', 'Nama Karyawan', 'Department', 'Seksi', 'Jabatan', 'Grade', 'Skor', 'Target', 'Defisit', 'Rekomendasi Tindak Lanjut HR / Dept', 'PIC']],
+      body: usRows,
+      theme: 'plain',
+      showHead: 'everyPage',
+      headStyles: {
+        fillColor: [185, 28, 28], // Dark Red for action plan header
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 6.2,
+        cellPadding: { top: 1.5, bottom: 1.5, left: 1.8, right: 1.8 }
+      },
+      columnStyles: {
+        0: { halign: 'center', cellWidth: contentWidth * 0.035 },
+        1: { halign: 'left', fontStyle: 'bold', cellWidth: contentWidth * 0.085 },
+        2: { halign: 'left', fontStyle: 'bold', cellWidth: contentWidth * 0.16 },
+        3: { halign: 'left', cellWidth: contentWidth * 0.12 },
+        4: { halign: 'left', cellWidth: contentWidth * 0.10 },
+        5: { halign: 'left', cellWidth: contentWidth * 0.11 },
+        6: { halign: 'center', cellWidth: contentWidth * 0.05 },
+        7: { halign: 'center', fontStyle: 'bold', cellWidth: contentWidth * 0.05 },
+        8: { halign: 'center', cellWidth: contentWidth * 0.05 },
+        9: { halign: 'center', fontStyle: 'bold', cellWidth: contentWidth * 0.055, textColor: COLOR_DANGER_RED },
+        10: { halign: 'left', cellWidth: contentWidth * 0.125, fontStyle: 'italic' },
+        11: { halign: 'left', cellWidth: contentWidth * 0.06 }
+      },
+      bodyStyles: {
+        fontSize: 5.8,
+        textColor: COLOR_TEXT_DARK,
+        cellPadding: { top: 1.2, bottom: 1.2, left: 1.8, right: 1.8 }
+      },
+      alternateRowStyles: {
+        fillColor: COLOR_BG_US
+      },
+      pageBreak: 'auto',
+      margin: { left: marginX, right: marginX, top: 14, bottom: 15 }
+    });
+
+    y = ((doc as any).lastAutoTable?.finalY ?? y) + 6;
+  };
+
+  // =========================================================================
+  // 10. ELECTRONIC SIGN-OFF & APPROVAL BLOCK (OFFICIAL HR CERTIFICATION)
   // =========================================================================
   const drawSignaturesBlock = () => {
-    // Ensure the executive report signature page is cleanly placed on Page 3
-    if (reportType !== 'employee_detail') {
-      while (doc.getNumberOfPages() < 3) {
-        doc.addPage();
-      }
-      doc.setPage(3);
-      y = 18;
-    } else if (y > pageHeight - 55) {
+    const boxW = isLandscape ? 62 : 58;
+    const boxH = 26;
+    const signAreaHeight = boxH + 24;
+
+    // Check if enough room exists on current page; if not, add clean sign-off page
+    if (y > pageHeight - signAreaHeight) {
       doc.addPage();
       y = 18;
     }
 
-    const boxW = 56;
-    const boxH = 26;
+    // Divider line above signatures
+    doc.setDrawColor(...COLOR_BORDER);
+    doc.setLineWidth(0.3);
+    doc.line(marginX, y, pageWidth - marginX, y);
+    y += 4.5;
+
     const signX = pageWidth - marginX - boxW;
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.8);
+    doc.setFontSize(7.5);
     doc.setTextColor(51, 65, 85);
     doc.text(`Mojokerto, ${tanggalStr}`, signX, y);
-    y += 4.2;
+    y += 4;
 
-    doc.text('Mengetahui,', signX, y);
-    y += 4.2;
+    doc.text('Mengetahui & Menyetujui,', signX, y);
+    y += 3.8;
 
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.8);
+    doc.setFontSize(8.5);
     doc.setTextColor(...COLOR_NAVY);
-    doc.text('HR Management', signX, y);
-    y += 2.8;
+    doc.text('HR & Factory Management', signX, y);
+    y += 2.5;
 
     // Dashed Gold Border Box
     doc.setDrawColor(...COLOR_GOLD);
@@ -486,7 +865,7 @@ export function generateMultiSkillReportPdf({
     }
 
     // Inside E-Sign Box
-    const iconX = signX + 7.5;
+    const iconX = signX + 7;
     const iconY = y + 7.5;
 
     // Gold Circle Badge
@@ -500,141 +879,124 @@ export function generateMultiSkillReportPdf({
 
     // "E-SIGNED" Text
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.8);
+    doc.setFontSize(8.5);
     doc.setTextColor(...COLOR_GOLD);
-    doc.text('E-SIGNED', iconX + 6, iconY + 0.8);
+    doc.text('E-SIGNED & VERIFIED', iconX + 6, iconY + 0.8);
 
     // Subtext inside box
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(6.4);
+    doc.setFontSize(6.2);
     doc.setTextColor(...COLOR_TEXT_MUTED);
-    doc.text('Ditandatangani elektronik', iconX - 3, iconY + 6.5);
-    doc.text(tanggalStr, iconX - 3, iconY + 10.5);
-    doc.text(jamStr, iconX - 3, iconY + 14.5);
+    doc.text('Sistem Monitoring Multi-Skill', iconX - 3, iconY + 6.2);
+    doc.text(tanggalStr, iconX - 3, iconY + 10.2);
+    doc.text(jamStr, iconX - 3, iconY + 14.2);
 
-    y += boxH + 4.5;
+    y += boxH + 4;
 
     // Signer Name & Role below box
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8.8);
+    doc.setFontSize(8.5);
     doc.setTextColor(...COLOR_TEXT_DARK);
     doc.text(`( ${signerName} )`, signX, y);
-    y += 4;
+    y += 3.8;
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.8);
+    doc.setFontSize(7.5);
     doc.setTextColor(...COLOR_TEXT_MUTED);
     doc.text(signerRole, signX, y);
   };
 
   // =========================================================================
-  // 9. OPTIONAL EMPLOYEE ROSTER DETAIL (FOR DETAILED REPORT TYPE)
+  // EXECUTE GENERATION SEQUENCE ACCORDING TO REPORT TYPE
   // =========================================================================
-  const drawEmployeeRosterIfRequested = () => {
-    if (reportType !== 'comprehensive' && reportType !== 'employee_detail') {
-      return;
-    }
-
-    if (reportType === 'employee_detail') {
-      drawSectionHeading(`Daftar Evaluasi Karyawan (${targetData.length} Karyawan)`);
-      const rosterRows = targetData.map((emp, idx) => {
-        const bLabel = emp.bulan ? BULAN_LABELS[emp.bulan - 1] || String(emp.bulan) : '-';
-        return [
-          String(idx + 1),
-          emp.empId || `EMP-${idx + 1}`,
-          emp.empName || '-',
-          emp.divisi || '-',
-          emp.department || '-',
-          emp.grade || '-',
-          emp.jabatan || '-',
-          `${bLabel.slice(0, 3)} ${emp.tahun || ''}`.trim(),
-          String(emp.totalScore || 0),
-          emp.standard !== null && emp.standard !== undefined ? `≥ ${emp.standard}` : '-',
-          emp.result || '-'
-        ];
-      });
-
-      autoTable(doc, {
-        startY: y,
-        head: [['No', 'Emp ID', 'Nama Karyawan', 'Divisi', 'Dept', 'Grade', 'Jabatan', 'Periode', 'Skor', 'Std', 'Status']],
-        body: rosterRows,
-        theme: 'plain',
-        headStyles: {
-          fillColor: COLOR_NAVY,
-          textColor: [255, 255, 255],
-          fontStyle: 'bold',
-          fontSize: 6.5,
-          cellPadding: 1.5
-        },
-        columnStyles: {
-          0: { halign: 'center', cellWidth: 8 },
-          1: { halign: 'left', fontStyle: 'bold', cellWidth: 20 },
-          2: { halign: 'left', fontStyle: 'bold', cellWidth: 32 },
-          3: { halign: 'left', cellWidth: 24 },
-          4: { halign: 'left', cellWidth: 24 },
-          5: { halign: 'center', cellWidth: 12 },
-          6: { halign: 'left', cellWidth: 26 },
-          7: { halign: 'center', cellWidth: 14 },
-          8: { halign: 'center', fontStyle: 'bold', cellWidth: 10 },
-          9: { halign: 'center', cellWidth: 10 },
-          10: { halign: 'center', fontStyle: 'bold', cellWidth: 12 }
-        },
-        bodyStyles: {
-          fontSize: 6,
-          textColor: COLOR_TEXT_DARK,
-          cellPadding: 1.2
-        },
-        alternateRowStyles: {
-          fillColor: COLOR_BG_ALT
-        },
-        margin: { left: marginX, right: marginX }
-      });
-
-      y = ((doc as any).lastAutoTable?.finalY ?? y) + 8;
-    }
-  };
-
-  // =========================================================================
-  // EXECUTE GENERATION SEQUENCE (MATCHING EXACT 3-PAGE ATTACHMENT)
-  // =========================================================================
-  // Page 1:
+  // 1. First Page Header & Primary KPIs
   drawHeader();
   drawKpiCards();
-  drawFilterAktif();
-  drawDivisiTable();
-  drawDepartmentTable();
+  drawAnalyticalHighlightsAndFilter();
 
-  // Page 2 & subsequent:
-  drawGradeTable();
-  drawJobPositionTable();
-  drawEmployeeRosterIfRequested();
+  if (reportType === 'comprehensive') {
+    // COMPREHENSIVE REPORT:
+    // Page 1: Divisi & Department Breakdown
+    drawDivisiTable();
+    drawDepartmentTable();
+    drawJobPositionTable();
+    drawGradeTable();
 
-  // Signature Block (Page 3):
-  drawSignaturesBlock();
+    // Critical: Complete Employee Roster
+    drawEmployeeRosterTable();
+
+    // Action Plan: Prioritas Pembinaan Karyawan Belum Standar
+    drawActionPlanUnderStandardTable();
+
+    // Signature Block at conclusion
+    drawSignaturesBlock();
+
+  } else if (reportType === 'employee_detail') {
+    // DETAILED EMPLOYEE MATRIX REPORT:
+    // Focus purely on complete employee evaluations + Action Plan
+    drawEmployeeRosterTable();
+    drawActionPlanUnderStandardTable();
+    drawDivisiTable();
+    drawSignaturesBlock();
+
+  } else {
+    // EXECUTIVE MANAGEMENT REPORT:
+    // High-level organizational recap + Job Position & Grade + Action Plan summary
+    drawDivisiTable();
+    drawDepartmentTable();
+    drawJobPositionTable();
+    drawGradeTable();
+    drawActionPlanUnderStandardTable();
+    drawSignaturesBlock();
+  }
 
   // =========================================================================
-  // 10. SECOND PASS: FOOTER ON ALL PAGES ("Halaman X / Y")
+  // 11. SECOND PASS: RUNNING CORPORATE HEADER & FOOTER ON ALL PAGES
   // =========================================================================
   const totalPages = doc.getNumberOfPages();
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
-    const footerY = pageHeight - 9;
+
+    // Running Header on subsequent pages (p >= 2)
+    if (p >= 2) {
+      doc.setFillColor(...COLOR_NAVY);
+      doc.rect(0, 0, pageWidth, 8.5, 'F');
+      doc.setFillColor(...COLOR_GOLD);
+      doc.rect(0, 8.5, pageWidth, 0.8, 'F');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(255, 255, 255);
+      doc.text('PT AJINOMOTO INDONESIA — MOJOKERTO FACTORY | MULTI-SKILL MONITORING SYSTEM', marginX, 5.5);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6);
+      doc.setTextColor(203, 213, 225);
+      doc.text(`Dokumen Resmi Evaluasi Karyawan • ${tanggalStr}`, pageWidth - marginX, 5.5, { align: 'right' });
+    }
+
+    // Running Footer on all pages
+    const footerY = pageHeight - 8.5;
+    doc.setDrawColor(...COLOR_BORDER);
+    doc.setLineWidth(0.2);
+    doc.line(marginX, footerY - 2.5, pageWidth - marginX, footerY - 2.5);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(7.2);
+    doc.setFontSize(6.5);
     doc.setTextColor(148, 163, 184); // #94A3B8
 
-    // Left Footer: Sistem Multi-Skill Monitoring – Ajinomoto Mojokerto Factory
-    doc.text('Sistem Multi-Skill Monitoring – Ajinomoto Mojokerto Factory', marginX, footerY);
+    // Left Footer
+    doc.text('Sistem Multi-Skill Monitoring – PT Ajinomoto Indonesia (Mojokerto Factory) • Dokumen Rahasia Perusahaan', marginX, footerY + 1);
 
-    // Right Footer: Halaman X / Y
-    const pageStr = `Halaman ${p} / ${totalPages}`;
-    doc.text(pageStr, pageWidth - marginX, footerY, { align: 'right' });
+    // Right Footer
+    const pageStr = `Halaman ${p} dari ${totalPages}`;
+    doc.text(pageStr, pageWidth - marginX, footerY + 1, { align: 'right' });
   }
 
   const cleanBulan = filters.bulan.length === 1 ? `_Bulan${filters.bulan[0]}` : '';
   const cleanTahun = filters.tahun.length === 1 ? `_${filters.tahun[0]}` : '';
-  const filename = `Laporan_MultiSkill_Ajinomoto${cleanTahun}${cleanBulan}_${now.toISOString().slice(0, 10)}.pdf`;
+  const modeSuffix = reportType === 'employee_detail' ? '_DetailKaryawan' : reportType === 'executive' ? '_Eksekutif' : '_Komprehensif';
+  const filename = `Laporan_MultiSkill_Ajinomoto${cleanTahun}${cleanBulan}${modeSuffix}_${now.toISOString().slice(0, 10)}.pdf`;
 
   return {
     doc,
