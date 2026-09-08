@@ -17,7 +17,7 @@ import {
   updateEmployeeProfile
 } from './utils/storage';
 import { INITIAL_SKILL_META } from './data/initialData';
-import { Employee, UserSession, AppFiltersState } from './types';
+import { Employee, UserSession, AppFiltersState, AppTab } from './types';
 import {
   getSupabaseConfig,
   fetchSupabaseEmployees,
@@ -38,6 +38,7 @@ import { Header } from './components/Header';
 import { SharedFilterBar } from './components/SharedFilterBar';
 import { DashboardView } from './components/DashboardView';
 import { EmployeeDataView } from './components/EmployeeDataView';
+import { ExecutivePresentationView } from './components/ExecutivePresentationView';
 import { SettingsView } from './components/SettingsView';
 import { ImportSyncModal } from './components/ImportSyncModal';
 import { ExportExcelConfirmModal } from './components/ExportExcelConfirmModal';
@@ -50,13 +51,14 @@ export default function App() {
   // Navigation Screen: 'landing' | 'login' | 'app'
   const [currentScreen, setCurrentScreen] = useState<'landing' | 'login' | 'app'>('landing');
 
-  // Active Tab inside App: 'dashboard' | 'employee' | 'settings'
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'employee' | 'settings'>('dashboard');
+  // Active Tab inside App: 'dashboard' | 'employee' | 'presentation' | 'settings'
+  const [activeTab, setActiveTab] = useState<AppTab>('dashboard');
 
   // Visited Tabs Cache: keep mounted views in DOM for instant navigation and preserved state
-  const [visitedTabs, setVisitedTabs] = useState<Record<'dashboard' | 'employee' | 'settings', boolean>>({
+  const [visitedTabs, setVisitedTabs] = useState<Record<AppTab, boolean>>({
     dashboard: true,
     employee: false,
+    presentation: false,
     settings: false
   });
 
@@ -888,7 +890,7 @@ export default function App() {
         return;
       }
 
-      // 3. Navigate Tabs (Alt+1 = Dashboard, Alt+2 = Data Karyawan, Alt+3 = Settings)
+      // 3. Navigate Tabs (Alt+1 = Dashboard, Alt+2 = Data Karyawan, Alt+3 = Presentasi Direksi, Alt+4 = Settings)
       if (e.altKey && e.key === '1') {
         e.preventDefault();
         setActiveTab('dashboard');
@@ -900,6 +902,11 @@ export default function App() {
         return;
       }
       if (e.altKey && e.key === '3') {
+        e.preventDefault();
+        setActiveTab('presentation');
+        return;
+      }
+      if (e.altKey && e.key === '4') {
         e.preventDefault();
         setActiveTab('settings');
         return;
@@ -1040,6 +1047,7 @@ export default function App() {
               onToggleSidebarCollapse={handleToggleSidebarCollapse}
               onOpenPdfModal={() => setIsGlobalPdfModalOpen(true)}
               onOpenShortcutsModal={() => setIsShortcutsModalOpen(true)}
+              onSelectTab={setActiveTab}
             />
 
             {/* SHARED FILTER BAR */}
@@ -1147,6 +1155,7 @@ export default function App() {
                         isDarkMode={isDarkMode}
                         onOpenPdfModal={() => setIsGlobalPdfModalOpen(true)}
                         onOpenExcelModal={() => setIsGlobalExcelModalOpen(true)}
+                        onOpenPresentation={() => setActiveTab('presentation')}
                       />
                     </div>
                   )}
@@ -1174,7 +1183,27 @@ export default function App() {
                     </div>
                   )}
 
-                  {/* TAB 3: PENGATURAN & LAPORAN */}
+                  {/* TAB 3: PRESENTASI & LAPORAN DIREKSI TO TOP MANAGEMENT */}
+                  {visitedTabs.presentation && (
+                    <div
+                      id="tab-pane-presentation"
+                      style={{ display: activeTab === 'presentation' ? 'block' : 'none' }}
+                      className={activeTab === 'presentation' ? 'animate-in fade-in duration-100' : ''}
+                    >
+                      <ExecutivePresentationView
+                        stats={dashboardStats}
+                        filteredEmployees={filteredEmployees}
+                        allEmployees={employees}
+                        filters={filters}
+                        currentUser={currentUser}
+                        isDarkMode={isDarkMode}
+                        onOpenPdfModal={() => setIsGlobalPdfModalOpen(true)}
+                        onOpenExcelModal={() => setIsGlobalExcelModalOpen(true)}
+                      />
+                    </div>
+                  )}
+
+                  {/* TAB 4: PENGATURAN & LAPORAN */}
                   {visitedTabs.settings && (
                     <div
                       id="tab-pane-settings"

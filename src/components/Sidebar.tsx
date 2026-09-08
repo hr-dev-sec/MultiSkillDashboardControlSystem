@@ -1,10 +1,10 @@
 import React from 'react';
 import { AJINOMOTO_LOGO_URL } from '../utils/storage';
-import { UserSession } from '../types';
+import { UserSession, AppTab } from '../types';
 
 interface SidebarProps {
-  activeTab: 'dashboard' | 'employee' | 'settings';
-  onSelectTab: (tab: 'dashboard' | 'employee' | 'settings') => void;
+  activeTab: AppTab;
+  onSelectTab: (tab: AppTab) => void;
   onLogout: () => void;
   currentUser: UserSession;
   isMobileOpen: boolean;
@@ -41,6 +41,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
       subtitle: 'Matriks 92 Kompetensi',
       icon: 'fa-users-gear',
       badge: '92 Skill'
+    },
+    {
+      id: 'presentation' as const,
+      label: 'Presentasi Direksi',
+      subtitle: 'Executive Briefing Top Mgmt',
+      icon: 'fa-chalkboard-user',
+      badge: 'Live'
     },
     {
       id: 'settings' as const,
@@ -209,6 +216,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                           ? 'bg-amber-500 shadow-[0_0_8px_rgba(251,191,36,0.6)]'
                           : item.id === 'employee'
                           ? 'bg-emerald-500 shadow-[0_0_8px_rgba(52,211,153,0.6)]'
+                          : item.id === 'presentation'
+                          ? 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]'
                           : 'bg-blue-500 shadow-[0_0_8px_rgba(96,165,250,0.6)]'
                       }`}
                     />

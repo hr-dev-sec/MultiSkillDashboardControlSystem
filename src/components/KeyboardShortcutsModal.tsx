@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { AppTab } from '../types';
 
 export interface ShortcutItem {
   id: string;
@@ -13,7 +14,7 @@ export interface ShortcutItem {
 interface KeyboardShortcutsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onNavigateTab: (tab: 'dashboard' | 'employee' | 'settings') => void;
+  onNavigateTab: (tab: AppTab) => void;
   onToggleSidebar: () => void;
   onToggleDarkMode: () => void;
   onOpenImportModal: () => void;
@@ -73,9 +74,17 @@ export const KeyboardShortcutsModal: React.FC<KeyboardShortcutsModalProps> = ({
       action: () => onNavigateTab('employee')
     },
     {
-      id: 'tab-settings',
+      id: 'tab-presentation',
       category: 'navigation',
       keys: ['Alt', '3'],
+      label: 'Buka Presentasi Direksi',
+      description: 'Masuk ke mode Laporan Eksekutif & Briefing to Top Management',
+      action: () => onNavigateTab('presentation')
+    },
+    {
+      id: 'tab-settings',
+      category: 'navigation',
+      keys: ['Alt', '4'],
       label: 'Buka Pengaturan & Laporan',
       description: 'Menuju form tanda tangan, master user, & distribusi',
       action: () => onNavigateTab('settings')

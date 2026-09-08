@@ -152,6 +152,8 @@ export interface ConfigMeta {
   bulanLabels: string[];
 }
 
+export type AppTab = 'dashboard' | 'employee' | 'presentation' | 'settings';
+
 export interface AppFiltersState {
   tahun: string[];
   bulan: string[];

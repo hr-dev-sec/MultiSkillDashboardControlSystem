@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { UserSession } from '../types';
+import { UserSession, AppTab } from '../types';
 import { onDatabaseSyncStatusChange, DatabaseSyncStatus } from '../utils/syncService';
 
 interface HeaderProps {
-  activeTab: 'dashboard' | 'employee' | 'settings';
+  activeTab: AppTab;
   currentUser: UserSession;
   onOpenMobileMenu: () => void;
   isDarkMode: boolean;
@@ -12,6 +12,7 @@ interface HeaderProps {
   onToggleSidebarCollapse: () => void;
   onOpenPdfModal?: () => void;
   onOpenShortcutsModal?: () => void;
+  onSelectTab?: (tab: AppTab) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -23,7 +24,8 @@ export const Header: React.FC<HeaderProps> = ({
   isSidebarCollapsed,
   onToggleSidebarCollapse,
   onOpenPdfModal,
-  onOpenShortcutsModal
+  onOpenShortcutsModal,
+  onSelectTab
 }) => {
   const [timeStr, setTimeStr] = useState<string>('');
   const [dbSyncStatus, setDbSyncStatus] = useState<DatabaseSyncStatus>('saved');
@@ -75,6 +77,12 @@ export const Header: React.FC<HeaderProps> = ({
       tag: '92 Standar Multi-Skill',
       icon: 'fa-users-gear',
       color: 'from-emerald-500 to-emerald-600'
+    },
+    presentation: {
+      title: 'Presentasi & Laporan Top Management',
+      tag: 'Executive Briefing & Boardroom Deck',
+      icon: 'fa-chalkboard-user',
+      color: 'from-amber-500 via-indigo-600 to-[#0E2340]'
     },
     settings: {
       title: 'Pengaturan & Laporan Distribusi',
@@ -171,6 +179,25 @@ export const Header: React.FC<HeaderProps> = ({
           <i className="fa-regular fa-clock text-amber-600 dark:text-amber-400 text-xs"></i>
           <span className="font-bold tracking-tight">{timeStr || '00:00:00 WIB'}</span>
         </div>
+
+        {/* Presentasi Direksi / Top Management Trigger */}
+        {onSelectTab && (
+          <button
+            type="button"
+            onClick={() => onSelectTab(activeTab === 'presentation' ? 'dashboard' : 'presentation')}
+            className={`h-9 px-3 rounded-xl flex items-center gap-2 transition-all duration-200 cursor-pointer border shadow-xs ${
+              activeTab === 'presentation'
+                ? 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 border-amber-500 font-extrabold shadow-md'
+                : 'bg-gradient-to-r from-indigo-50 to-blue-50 hover:from-indigo-100 hover:to-blue-100 text-indigo-900 dark:from-indigo-950/50 dark:to-blue-950/50 dark:hover:from-indigo-900/60 dark:hover:to-blue-900/60 dark:text-indigo-200 border-indigo-200 dark:border-indigo-800'
+            }`}
+            title="Buka Mode Presentasi & Laporan Direksi (Top Management Briefing)"
+          >
+            <i className={`fa-solid fa-chalkboard-user text-xs ${activeTab === 'presentation' ? 'text-slate-950' : 'text-indigo-600 dark:text-indigo-400'}`}></i>
+            <span className="text-xs font-bold hidden md:inline">
+              {activeTab === 'presentation' ? 'Tutup Presentasi' : 'Presentasi Direksi'}
+            </span>
+          </button>
+        )}
 
         {/* Quick Report PDF Button */}
         {onOpenPdfModal && (

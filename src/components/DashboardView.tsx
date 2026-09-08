@@ -55,13 +55,15 @@ interface DashboardViewProps {
   isDarkMode?: boolean;
   onOpenPdfModal?: () => void;
   onOpenExcelModal?: () => void;
+  onOpenPresentation?: () => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   stats,
   isDarkMode = false,
   onOpenPdfModal,
-  onOpenExcelModal
+  onOpenExcelModal,
+  onOpenPresentation
 }) => {
   const {
     totalManpower,
@@ -949,6 +951,21 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               <p className={`text-[10px] uppercase font-bold ${isDarkMode ? 'text-white/60' : 'text-slate-500'}`}>Pencapaian Tertinggi</p>
               <p className="text-base font-black text-slate-900 dark:text-white">{topDivisiRate}</p>
             </div>
+
+            {onOpenPresentation && (
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.04 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={onOpenPresentation}
+                className="px-4 py-2.5 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-sm transition-all cursor-pointer bg-gradient-to-r from-amber-500 via-amber-600 to-[#0E2340] hover:from-amber-600 hover:to-slate-900 text-white border border-amber-400/40"
+                title="Buka Mode Presentasi Eksekutif & Laporan to Top Management"
+              >
+                <i className="fa-solid fa-chalkboard-user text-sm text-amber-200"></i>
+                <span className="hidden sm:inline">Presentasi Direksi</span>
+                <span className="sm:hidden">Briefing</span>
+              </motion.button>
+            )}
 
             {onOpenPdfModal && (
               <motion.button
