@@ -1060,8 +1060,8 @@ export default function App() {
             />
 
             {/* SCROLLABLE MAIN VIEW */}
-            <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-7 relative bg-[#F8FAFC] dark:bg-[#070D19] transition-colors">
-              <div className="max-w-7xl mx-auto">
+            <main className="flex-1 overflow-y-auto p-3 sm:p-5 lg:p-6 2xl:p-8 relative bg-[#F8FAFC] dark:bg-[#070D19] transition-colors w-full">
+              <div className="w-full mx-auto space-y-4 sm:space-y-5">
                 {/* DATABASE SOURCE & SYNC STATUS BANNER */}
                 {supabaseLoadStatus.status === 'not_configured' && (
                   <div className="mb-4 px-4 py-3 rounded-xl border border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/40 flex flex-wrap items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200">

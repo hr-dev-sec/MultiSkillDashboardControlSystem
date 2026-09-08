@@ -724,7 +724,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
     : 'HR';
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 w-full">
       {/* SETTINGS SUB-NAVIGATION TABS */}
       <div className="flex items-center gap-2 p-1.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs overflow-x-auto">
         <button

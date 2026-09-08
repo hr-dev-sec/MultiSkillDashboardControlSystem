@@ -227,11 +227,11 @@ Laporan resmi terverifikasi sistem: ${new Date().toLocaleString('id-ID')}`;
   return (
     <div
       ref={containerRef}
-      className={`relative min-h-screen flex flex-col transition-colors duration-300 ${
+      className={`relative flex flex-col transition-colors duration-300 w-full ${
         isDarkMode
-          ? 'bg-[#081220] text-slate-100'
-          : 'bg-slate-50/80 text-slate-900'
-      } ${isFullscreen ? 'p-6 sm:p-10 overflow-y-auto' : 'p-4 sm:p-6 lg:p-8 space-y-6'}`}
+          ? 'text-slate-100'
+          : 'text-slate-900'
+      } ${isFullscreen ? 'fixed inset-0 z-50 p-4 sm:p-8 lg:p-10 overflow-y-auto bg-[#081220]' : 'space-y-4 sm:space-y-6'}`}
     >
       {/* TOP EXECUTIVE CARD: BRANDING, STATS & UNIFIED TOOLBAR */}
       <div className="bg-white/95 dark:bg-[#0A192F]/95 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-slate-200/90 dark:border-white/10 shadow-xs space-y-4 shrink-0">

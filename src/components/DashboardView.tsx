@@ -868,7 +868,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6 w-full">
       {/* EXECUTIVE HIGHLIGHT BANNER */}
       <motion.div
         initial={{ opacity: 0, y: -16, scale: 0.985 }}
@@ -986,7 +986,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </motion.div>
 
       {/* 4 STAT CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 sm:gap-5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 lg:gap-5">
         {/* Card 1: Total Manpower */}
         <motion.div
           initial={{ opacity: 0, y: 20, scale: 0.94 }}
@@ -1146,7 +1146,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       </div>
 
       {/* ROW 1: Target vs Result & MS/US per Divisi */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
         {/* Chart 1: Target vs Result per Position */}
         <motion.div
           initial={{ opacity: 0, y: 22, scale: 0.985 }}
@@ -1201,7 +1201,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          <div className="h-72">
+          <div className="h-72 sm:h-80 2xl:h-96">
             <Bar data={positionChartData} options={positionChartOptions} />
           </div>
         </motion.div>
@@ -1260,14 +1260,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          <div className="h-72">
+          <div className="h-72 sm:h-80 2xl:h-96">
             <Bar data={divisiChartData} options={horizontalStackedOptions} />
           </div>
         </motion.div>
       </div>
 
       {/* ROW 2: per Department & per Grade */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
         {/* Chart 3: per Department */}
         <motion.div
           initial={{ opacity: 0, y: 22, scale: 0.985 }}
@@ -1337,7 +1337,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          <div className="h-80">
+          <div className="h-72 sm:h-80 2xl:h-96">
             <Bar data={deptChartData} options={deptChartOptions} />
           </div>
         </motion.div>
@@ -1374,14 +1374,14 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          <div className="h-80">
+          <div className="h-72 sm:h-80 2xl:h-96">
             <Bar data={gradeChartData} options={verticalStackedOptions} />
           </div>
         </motion.div>
       </div>
 
       {/* ROW 3: Gender distribution & Job Category headcount */}
-      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 sm:gap-6">
         {/* Chart 5: Gender Donut */}
         <motion.div
           initial={{ opacity: 0, y: 22, scale: 0.985 }}
@@ -1408,7 +1408,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          <div className="h-64 relative flex items-center justify-center">
+          <div className="h-64 sm:h-72 2xl:h-80 relative flex items-center justify-center">
             {genderEntries.length > 0 ? (
               <>
                 <Doughnut data={genderChartData} options={genderChartOptions} />
@@ -1454,7 +1454,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          <div className="h-64">
+          <div className="h-64 sm:h-72 2xl:h-80">
             <Bar data={manpowerPositionData} options={manpowerPositionOptions} />
           </div>
         </motion.div>
