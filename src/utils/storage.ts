@@ -34,9 +34,11 @@ import {
 } from './systemDbService';
 import {
   getSupabaseConfig,
+  setCachedSupabaseConfig,
   fetchSupabaseUsers,
   authenticateUserSupabase,
   autoSyncEmployeesToSupabase,
+  syncSingleEmployeeToSupabase,
   deleteEmployeeFromSupabase,
   pushEmployeesToSupabase
 } from './syncService';
@@ -325,6 +327,7 @@ export async function syncSystemFromBackend(): Promise<{ users: UserAccount[]; c
       // Auto-propagate Supabase config between Server DB and client localStorage
       const localSb = getSupabaseConfig();
       if (initData.config?.supabaseConfig && initData.config.supabaseConfig.url && initData.config.supabaseConfig.anonKey) {
+        setCachedSupabaseConfig(initData.config.supabaseConfig);
         if (!localSb.url || !localSb.anonKey) {
           try {
             localStorage.setItem('msm_supabase_config_v1', JSON.stringify(initData.config.supabaseConfig));
@@ -1055,6 +1058,11 @@ export function updateEmployeeSkillMatrix(
   updatedEmployees[index] = updatedEmployee;
   saveStoredEmployees(updatedEmployees);
 
+  const config = getSupabaseConfig();
+  if (config.url && config.anonKey) {
+    syncSingleEmployeeToSupabase(config, updatedEmployee).catch(() => {});
+  }
+
   return { updatedEmployees, updatedEmployee };
 }
 
@@ -1242,6 +1250,11 @@ export function updateEmployeeProfile(
   }
 
   saveStoredEmployees(updatedEmployees, { immediateCloudSync: true });
+
+  const activeSb = getSupabaseConfig();
+  if (activeSb.url && activeSb.anonKey) {
+    syncSingleEmployeeToSupabase(activeSb, updatedEmployee).catch(() => {});
+  }
 
   const stdMsg = updatedEmployee.standard !== null ? ` Standar otomatis disesuaikan ke: ≥ ${updatedEmployee.standard}.` : '';
 

@@ -26,7 +26,8 @@ import {
   deleteEmployeeFromSupabase,
   mergeEmployeesData,
   notifySyncStatus,
-  autoSyncEmployeesToSupabase
+  autoSyncEmployeesToSupabase,
+  syncSingleEmployeeToSupabase
 } from './utils/syncService';
 import { fetchEmployeesFromServer, saveEmployeesToServer } from './utils/systemDbService';
 
@@ -678,11 +679,12 @@ export default function App() {
   // Update Single Skill for an employee
   const handleUpdateSkill = useCallback((rowIndex: number, skillCode: string, checked: boolean) => {
     setEmployees((prev) => {
+      let targetEmp: Employee | null = null;
       const updated = prev.map((emp) => {
         if (emp.rowIndex !== rowIndex) return emp;
         const newSkills = { ...emp.skills, [skillCode]: checked };
         const { totalScore, standard, result, gap, jobCategory } = calculateEmployeeScore(newSkills, emp.jabatan);
-        return {
+        const updatedEmp = {
           ...emp,
           skills: newSkills,
           totalScore,
@@ -691,8 +693,16 @@ export default function App() {
           gap,
           jobCategory
         };
+        targetEmp = updatedEmp;
+        return updatedEmp;
       });
       saveStoredEmployees(updated);
+      if (targetEmp) {
+        const sb = getSupabaseConfig();
+        if (sb.url && sb.anonKey) {
+          syncSingleEmployeeToSupabase(sb, targetEmp).catch(() => {});
+        }
+      }
       return updated;
     });
   }, []);
@@ -730,6 +740,10 @@ export default function App() {
 
         const nextList = [newEmp, ...prev];
         saveStoredEmployees(nextList);
+        const sb = getSupabaseConfig();
+        if (sb.url && sb.anonKey) {
+          syncSingleEmployeeToSupabase(sb, newEmp).catch(() => {});
+        }
         return nextList;
       });
 

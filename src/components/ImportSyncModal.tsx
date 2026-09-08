@@ -55,6 +55,13 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
 
   // Supabase state
   const [supabaseConfig, setSupabaseConfig] = useState<SupabaseConfig>(() => getSupabaseConfig());
+
+  // Keep config fresh whenever modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setSupabaseConfig(getSupabaseConfig());
+    }
+  }, [isOpen]);
   const [showAnonKey, setShowAnonKey] = useState(false);
   const [isTestingSupabase, setIsTestingSupabase] = useState(false);
   const [isFetchingSupabase, setIsFetchingSupabase] = useState(false);
@@ -481,39 +488,70 @@ export const ImportSyncModal: React.FC<ImportSyncModalProps> = ({
   };
 
   // -------------------------------------------------------------
-  // Final Apply Data to Application State
+  // Final Apply Data to Application State & Supabase Database
   // -------------------------------------------------------------
-  const handleApplyToDatabase = () => {
+  const handleApplyToDatabase = async () => {
     if (!previewData || !previewData.parsedEmployees.length) {
       setStatusAlert({ type: 'error', message: 'Belum ada data hasil sinkronisasi untuk diterapkan.' });
       return;
     }
 
     setIsApplying(true);
-    setTimeout(() => {
+    setStatusAlert({ type: 'info', message: 'Menghitung dan memproses data karyawan...' });
+
+    try {
       const result = mergeEmployeesData(currentEmployees, previewData.parsedEmployees, mergeMode);
-      setIsApplying(false);
+
+      // Check active Supabase configuration
+      const activeSb = (supabaseConfig.url && supabaseConfig.anonKey) ? supabaseConfig : getSupabaseConfig();
+      let cloudSyncNote = '';
+
+      if (alsoSyncToSupabase && activeSb.url && activeSb.anonKey) {
+        setStatusAlert({
+          type: 'info',
+          message: `Menyimpan ${result.updatedEmployees.length} data karyawan langsung ke database Supabase... Mohon tunggu.`
+        });
+
+        const syncMode = mergeMode === 'replace' ? 'replace' : 'upsert';
+        const pushRes = await pushEmployeesToSupabase(activeSb, result.updatedEmployees, {
+          mode: syncMode,
+          onProgress: (done, total) => {
+            setStatusAlert({
+              type: 'info',
+              message: `Menyimpan ke Supabase: ${done} dari ${total} data karyawan...`
+            });
+          }
+        });
+
+        if (pushRes.success) {
+          cloudSyncNote = ' & database Supabase telah berhasil diperbarui.';
+        } else {
+          console.warn('[Sync Modal] Push to Supabase warning:', pushRes.message);
+          cloudSyncNote = ` (Peringatan: Gagal sinkronisasi Supabase: ${pushRes.message})`;
+        }
+      }
 
       let msg = '';
       if (mergeMode === 'replace') {
-        msg = `Database berhasil digantikan dengan ${result.addedCount} data karyawan baru.`;
+        msg = `Database berhasil digantikan dengan ${result.addedCount} data karyawan baru${cloudSyncNote}`;
       } else if (mergeMode === 'append') {
-        msg = `Berhasil menambahkan ${result.addedCount} data karyawan baru ke database.`;
+        msg = `Berhasil menambahkan ${result.addedCount} data karyawan baru ke database${cloudSyncNote}`;
       } else {
-        msg = `Sinkronisasi selesai: ${result.updatedCount} data diperbarui, ${result.addedCount} data baru ditambahkan. Total: ${result.updatedEmployees.length} karyawan.`;
+        msg = `Sinkronisasi selesai: ${result.updatedCount} data diperbarui, ${result.addedCount} data baru ditambahkan. Total: ${result.updatedEmployees.length} karyawan${cloudSyncNote}`;
       }
 
       try {
         confetti({ particleCount: 70, spread: 80, origin: { y: 0.5 } });
       } catch (_) {}
 
-      if (alsoSyncToSupabase && supabaseConfig.url && supabaseConfig.anonKey) {
-        autoSyncEmployeesToSupabase(result.updatedEmployees, true);
-      }
-
       onApplySync(result.updatedEmployees, msg);
+      setIsApplying(false);
       onClose();
-    }, 400);
+    } catch (err: any) {
+      console.error('[Sync Modal] Error applying to database:', err);
+      setStatusAlert({ type: 'error', message: `Gagal menerapkan data: ${err?.message || 'Terjadi kesalahan sistem'}` });
+      setIsApplying(false);
+    }
   };
 
   return (
@@ -1513,15 +1551,18 @@ SUPABASE_TABLE=${supabaseConfig.tableName || 'employees_multi_skill'}`}
           </div>
 
           <div className="flex items-center gap-3">
-            {supabaseConfig.url && supabaseConfig.anonKey && (
-              <label className="hidden sm:flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer select-none">
+            {(supabaseConfig.url || getSupabaseConfig().url) && (
+              <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={alsoSyncToSupabase}
                   onChange={(e) => setAlsoSyncToSupabase(e.target.checked)}
                   className="rounded text-emerald-600 focus:ring-0 cursor-pointer"
                 />
-                <span>Juga sinkronkan ke Supabase</span>
+                <span className="font-semibold text-emerald-700 dark:text-emerald-400 flex items-center gap-1">
+                  <i className="fa-solid fa-cloud-arrow-up text-[10px]"></i>
+                  Juga simpan ke Supabase
+                </span>
               </label>
             )}
 

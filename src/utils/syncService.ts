@@ -43,7 +43,27 @@ export interface SchemaFieldDoc {
 
 const SUPABASE_CONFIG_KEY = 'msm_supabase_config_v1';
 
-// Default Supabase Config (with automatic fallback to Vite & Vercel Environment Variables)
+// In-Memory Runtime Cache for Supabase Config (synced across incognito sessions via server init)
+let inMemorySupabaseConfig: Partial<SupabaseConfig> | null = null;
+
+export function setCachedSupabaseConfig(cfg: Partial<SupabaseConfig>): void {
+  if (cfg && (cfg.url || cfg.anonKey)) {
+    inMemorySupabaseConfig = {
+      ...inMemorySupabaseConfig,
+      ...cfg
+    };
+    try {
+      localStorage.setItem(SUPABASE_CONFIG_KEY, JSON.stringify({
+        url: inMemorySupabaseConfig.url || '',
+        anonKey: inMemorySupabaseConfig.anonKey || '',
+        tableName: inMemorySupabaseConfig.tableName || 'employees_multi_skill',
+        usersTableName: inMemorySupabaseConfig.usersTableName || 'system_users'
+      }));
+    } catch (_) {}
+  }
+}
+
+// Default Supabase Config (with automatic fallback to memory cache, Vite & Vercel Environment Variables)
 export function getSupabaseConfig(): SupabaseConfig {
   let savedConfig: Partial<SupabaseConfig> = {};
   try {
@@ -58,10 +78,15 @@ export function getSupabaseConfig(): SupabaseConfig {
   const envTable = String(metaEnv.VITE_SUPABASE_TABLE || metaEnv.SUPABASE_TABLE || 'employees_multi_skill').trim();
   const envUsersTable = String(metaEnv.VITE_SUPABASE_USERS_TABLE || metaEnv.SUPABASE_USERS_TABLE || 'system_users').trim();
 
-  const resolvedUrl = (savedConfig.url && savedConfig.url.trim()) || envUrl;
-  const resolvedAnonKey = (savedConfig.anonKey && savedConfig.anonKey.trim()) || envKey;
-  const resolvedTable = (savedConfig.tableName && savedConfig.tableName.trim()) || envTable || 'employees_multi_skill';
-  const resolvedUsersTable = (savedConfig.usersTableName && savedConfig.usersTableName.trim()) || envUsersTable || 'system_users';
+  const memUrl = (inMemorySupabaseConfig?.url && inMemorySupabaseConfig.url.trim()) || '';
+  const memKey = (inMemorySupabaseConfig?.anonKey && inMemorySupabaseConfig.anonKey.trim()) || '';
+  const memTable = (inMemorySupabaseConfig?.tableName && inMemorySupabaseConfig.tableName.trim()) || '';
+  const memUsersTable = (inMemorySupabaseConfig?.usersTableName && inMemorySupabaseConfig.usersTableName.trim()) || '';
+
+  const resolvedUrl = (savedConfig.url && savedConfig.url.trim()) || memUrl || envUrl;
+  const resolvedAnonKey = (savedConfig.anonKey && savedConfig.anonKey.trim()) || memKey || envKey;
+  const resolvedTable = (savedConfig.tableName && savedConfig.tableName.trim()) || memTable || envTable || 'employees_multi_skill';
+  const resolvedUsersTable = (savedConfig.usersTableName && savedConfig.usersTableName.trim()) || memUsersTable || envUsersTable || 'system_users';
 
   return {
     url: resolvedUrl,
@@ -1292,17 +1317,29 @@ export type SyncProgressCallback = (current: number, total: number, percentage: 
 
 export interface PushOptions {
   mode?: 'upsert' | 'replace';
+  onProgress?: SyncProgressCallback;
 }
 
 export async function pushEmployeesToSupabase(
   config: SupabaseConfig,
   employees: Employee[],
-  onProgress?: SyncProgressCallback,
-  options?: PushOptions
+  progressOrOptions?: SyncProgressCallback | PushOptions,
+  maybeOptions?: PushOptions
 ): Promise<SyncResponse> {
   const test = await testSupabaseConnection(config);
   if (!test.success) {
     return { success: false, message: test.message };
+  }
+
+  let onProgress: SyncProgressCallback | undefined;
+  let options: PushOptions | undefined;
+
+  if (typeof progressOrOptions === 'function') {
+    onProgress = progressOrOptions;
+    options = maybeOptions;
+  } else if (progressOrOptions && typeof progressOrOptions === 'object') {
+    options = progressOrOptions;
+    onProgress = progressOrOptions.onProgress;
   }
 
   const tableName = config.tableName.trim() || 'employees_multi_skill';
@@ -1431,6 +1468,13 @@ export async function pushEmployeesToSupabase(
                     batchSuccess = true;
                     break;
                   } else {
+                    // Critical fix: Delete existing records with matching empId to ensure they are replaced rather than left stale
+                    const empIds = Array.from(new Set(chunk.map((c) => String(c.emp_id || '').trim()).filter(Boolean)));
+                    if (empIds.length > 0) {
+                      try {
+                        await client.from(tableName).delete().in('emp_id', empIds);
+                      } catch (_) {}
+                    }
                     const fbInsert = await client.from(tableName).insert(chunk);
                     if (!fbInsert.error) {
                       batchSuccess = true;
@@ -1641,12 +1685,74 @@ export function notifySyncStatus(status: DatabaseSyncStatus) {
 }
 
 /**
+ * Synchronize a single employee record directly to Supabase
+ * Fast, lightweight, and ensures instant cloud persistence upon individual edits or skill toggles.
+ */
+export async function syncSingleEmployeeToSupabase(
+  config: SupabaseConfig,
+  employee: Employee
+): Promise<{ success: boolean; message: string }> {
+  if (!config.url || !config.anonKey) {
+    return { success: false, message: 'Supabase belum dikonfigurasi.' };
+  }
+
+  const record = {
+    emp_id: String(employee.empId || '').trim(),
+    emp_name: String(employee.empName || '').trim(),
+    divisi: employee.divisi ? String(employee.divisi).trim() : null,
+    department: employee.department ? String(employee.department).trim() : null,
+    section: employee.section ? String(employee.section).trim() : null,
+    grade: employee.grade ? String(employee.grade).trim() : null,
+    job_grade: employee.jobGrade ? String(employee.jobGrade).trim() : null,
+    jabatan: employee.jabatan ? String(employee.jabatan).trim() : null,
+    gender: employee.gender ? String(employee.gender).trim() : 'L',
+    tanggal_pensiun: employee.tanggalPensiun ? String(employee.tanggalPensiun).trim() : null,
+    pic: employee.pic ? String(employee.pic).trim() : null,
+    tahun: Number(employee.tahun) || new Date().getFullYear(),
+    bulan: Number(employee.bulan) || (new Date().getMonth() + 1),
+    job_category: employee.jobCategory ? String(employee.jobCategory).trim() : null,
+    total_score: Number(employee.totalScore) || 0,
+    standard: (employee.standard !== null && employee.standard !== undefined && !isNaN(Number(employee.standard))) ? Number(employee.standard) : null,
+    result: (employee.result && String(employee.result).toUpperCase().includes('MS')) ? 'MS' : 'US',
+    gap: Number(employee.gap) || 0,
+    skills: (employee.skills && typeof employee.skills === 'object') ? employee.skills : {},
+    updated_at: new Date().toISOString()
+  };
+
+  try {
+    const res = await fetch('/api/supabase/sync-single', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: config.url,
+        anonKey: config.anonKey,
+        tableName: config.tableName || 'employees_multi_skill',
+        record
+      })
+    });
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.success) {
+      lastSyncTimestamp = Date.now();
+      notifySyncStatus('saved');
+      return { success: true, message: `Data karyawan ${employee.empName} tersinkronisasi ke Supabase.` };
+    }
+    return { success: false, message: data?.message || `Gagal update ke Supabase (HTTP ${res.status})` };
+  } catch (err: any) {
+    return { success: false, message: err?.message || 'Gagal terhubung ke endpoint single sync' };
+  }
+}
+
+let pendingSyncEmployees: Employee[] | null = null;
+let pendingSyncMode: 'upsert' | 'replace' = 'upsert';
+
+/**
  * Automatically syncs employee records to Supabase in the background
- * Debounced to batch rapid clicks/toggles, with optional immediate mode.
+ * Debounced to batch rapid clicks/toggles, with queue guarantee so no update is dropped.
  */
 export function autoSyncEmployeesToSupabase(
   employees: Employee[],
-  immediate: boolean = false
+  immediate: boolean = false,
+  mode: 'upsert' | 'replace' = 'upsert'
 ): void {
   if (autoSyncDebounceTimer) {
     clearTimeout(autoSyncDebounceTimer);
@@ -1657,7 +1763,9 @@ export function autoSyncEmployeesToSupabase(
 
   const executeSync = async () => {
     if (isAutoSyncing) {
-      autoSyncDebounceTimer = setTimeout(executeSync, 600);
+      // Queue up the latest employees so they are synced immediately after current batch finishes
+      pendingSyncEmployees = employees;
+      pendingSyncMode = mode;
       return;
     }
 
@@ -1671,29 +1779,34 @@ export function autoSyncEmployeesToSupabase(
 
     try {
       isAutoSyncing = true;
-      const res = await pushEmployeesToSupabase(config, employees);
+      const res = await pushEmployeesToSupabase(config, employees, { mode });
       if (res.success) {
         lastSyncTimestamp = Date.now();
         notifySyncStatus('saved');
         console.log(`[Auto-Sync Database] Berhasil sinkronisasi ${employees.length} karyawan ke Supabase secara otomatis.`);
       } else {
         console.warn(`[Auto-Sync Database] Catatan auto-sync: ${res.message}`);
-        lastSyncTimestamp = Date.now();
-        notifySyncStatus('saved');
+        // Flag error so status reflects actual cloud state
+        notifySyncStatus('error');
       }
     } catch (err) {
       console.warn('[Auto-Sync Database] Error auto-syncing:', err);
-      lastSyncTimestamp = Date.now();
-      notifySyncStatus('saved');
+      notifySyncStatus('error');
     } finally {
       isAutoSyncing = false;
+      if (pendingSyncEmployees) {
+        const nextEmps = pendingSyncEmployees;
+        const nextMode = pendingSyncMode;
+        pendingSyncEmployees = null;
+        autoSyncEmployeesToSupabase(nextEmps, true, nextMode);
+      }
     }
   };
 
   if (immediate) {
     executeSync();
   } else {
-    autoSyncDebounceTimer = setTimeout(executeSync, 800);
+    autoSyncDebounceTimer = setTimeout(executeSync, 600);
   }
 }
 

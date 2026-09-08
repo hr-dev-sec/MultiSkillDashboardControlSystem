@@ -583,34 +583,73 @@ async function startServer() {
     }
   });
 
+  // Helper function to prune unrecognized columns from records if Supabase table schema differs
+  const pruneMissingColumnFromRecords = (records: any[], errorText: string): { records: any[]; prunedColumn: string | null } => {
+    let match = errorText.match(/Could not find the ['"]([^'"]+)['"] column/i);
+    if (!match) {
+      match = errorText.match(/column ['"]([^'"]+)['"] of relation/i);
+    }
+    if (match && match[1]) {
+      const col = match[1].trim();
+      const cleaned = records.map((r) => {
+        const copy = { ...r };
+        delete copy[col];
+        return copy;
+      });
+      return { records: cleaned, prunedColumn: col };
+    }
+    return { records, prunedColumn: null };
+  };
+
   // Server-Side Supabase Proxy: Push Batch (Solves browser "TypeError: Failed to fetch" and CORS/payload limits)
   app.post('/api/supabase/push-batch', async (req, res) => {
     try {
-      const { url, anonKey, tableName, records, mode } = req.body || {};
-      if (!url || !anonKey || !tableName || !Array.isArray(records) || records.length === 0) {
+      const { url, anonKey, tableName, records: initialRecords, mode } = req.body || {};
+      if (!url || !anonKey || !tableName || !Array.isArray(initialRecords) || initialRecords.length === 0) {
         return res.status(400).json({ success: false, message: 'Parameter URL, anonKey, tableName, dan records (array) wajib diisi.' });
       }
 
       const cleanUrl = url.trim().replace(/\/+$/, '');
       const cleanTable = tableName.trim();
+      let records = [...initialRecords];
 
-      const endpoint = mode === 'replace'
-        ? `${cleanUrl}/rest/v1/${cleanTable}`
-        : `${cleanUrl}/rest/v1/${cleanTable}?on_conflict=emp_id,tahun,bulan`;
+      // Helper for making fetch to Supabase
+      const doPushAttempt = async (targetRecords: any[]) => {
+        const endpoint = mode === 'replace'
+          ? `${cleanUrl}/rest/v1/${cleanTable}`
+          : `${cleanUrl}/rest/v1/${cleanTable}?on_conflict=emp_id,tahun,bulan`;
 
-      let response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'apikey': anonKey,
-          'Authorization': `Bearer ${anonKey}`,
-          'Content-Type': 'application/json',
-          'Prefer': mode === 'replace' ? 'return=minimal' : 'resolution=merge-duplicates'
-        },
-        body: JSON.stringify(records)
-      });
+        let response = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'apikey': anonKey,
+            'Authorization': `Bearer ${anonKey}`,
+            'Content-Type': 'application/json',
+            'Prefer': mode === 'replace' ? 'return=minimal' : 'resolution=merge-duplicates'
+          },
+          body: JSON.stringify(targetRecords)
+        });
+
+        return response;
+      };
+
+      let response = await doPushAttempt(records);
 
       if (!response.ok) {
-        const errorText = await response.text();
+        let errorText = await response.text();
+
+        // Check if error is due to missing column in user's Supabase schema
+        const pruneResult = pruneMissingColumnFromRecords(records, errorText);
+        if (pruneResult.prunedColumn) {
+          console.warn(`[Supabase Proxy] Pruning missing column "${pruneResult.prunedColumn}" and retrying...`);
+          records = pruneResult.records;
+          response = await doPushAttempt(records);
+          if (response.ok) {
+            return res.json({ success: true, count: records.length, note: `Kolom ${pruneResult.prunedColumn} diabaikan (tidak ada di skema Supabase)` });
+          }
+          errorText = await response.text();
+        }
+
         // Fallback 1: If composite onConflict emp_id,tahun,bulan fails due to missing constraint, try onConflict: emp_id
         if (mode !== 'replace' && (errorText.includes('unique') || errorText.includes('constraint') || errorText.includes('ON CONFLICT') || response.status === 400 || response.status === 409)) {
           const fbResponse = await fetch(`${cleanUrl}/rest/v1/${cleanTable}?on_conflict=emp_id`, {
@@ -627,21 +666,41 @@ async function startServer() {
             return res.json({ success: true, count: records.length, note: 'Fallback onConflict emp_id sukses' });
           }
 
-          // Fallback 2: Direct insert (skip duplicates or plain insert)
-          const insertResponse = await fetch(`${cleanUrl}/rest/v1/${cleanTable}`, {
-            method: 'POST',
-            headers: {
-              'apikey': anonKey,
-              'Authorization': `Bearer ${anonKey}`,
-              'Content-Type': 'application/json',
-              'Prefer': 'return=minimal'
-            },
-            body: JSON.stringify(records)
-          });
-          if (insertResponse.ok) {
-            return res.json({ success: true, count: records.length, note: 'Fallback direct insert sukses' });
+          // Fallback 2 (Atomic Delete-then-Insert): When table has NO unique constraint on emp_id,
+          // delete the old records first so new values REPLACE old values rather than being skipped or duplicated!
+          try {
+            const empIds = Array.from(new Set(records.map((r: any) => String(r.emp_id || '').trim()).filter(Boolean)));
+            if (empIds.length > 0) {
+              const inFilter = empIds.map((id) => `"${encodeURIComponent(id)}"`).join(',');
+              await fetch(`${cleanUrl}/rest/v1/${cleanTable}?emp_id=in.(${inFilter})`, {
+                method: 'DELETE',
+                headers: {
+                  'apikey': anonKey,
+                  'Authorization': `Bearer ${anonKey}`,
+                  'Prefer': 'return=minimal'
+                }
+              });
+            }
+
+            const insertResponse = await fetch(`${cleanUrl}/rest/v1/${cleanTable}`, {
+              method: 'POST',
+              headers: {
+                'apikey': anonKey,
+                'Authorization': `Bearer ${anonKey}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+              },
+              body: JSON.stringify(records)
+            });
+
+            if (insertResponse.ok) {
+              return res.json({ success: true, count: records.length, note: 'Fallback clean atomic replace sukses' });
+            }
+          } catch (deleteInsertErr) {
+            console.warn('[Supabase Proxy] Atomic delete-then-insert warning:', deleteInsertErr);
           }
         }
+
         return res.status(response.status).json({ success: false, message: `Supabase error (${response.status}): ${errorText}` });
       }
 
@@ -649,6 +708,68 @@ async function startServer() {
     } catch (err: any) {
       console.error('[Supabase Server Proxy] Push error:', err);
       return res.status(500).json({ success: false, message: `Server proxy Supabase gagal: ${err?.message || 'Network error'}` });
+    }
+  });
+
+  // Server-Side Supabase Proxy: Sync Single Employee Record Realtime
+  app.post('/api/supabase/sync-single', async (req, res) => {
+    try {
+      const { url, anonKey, tableName, record } = req.body || {};
+      if (!url || !anonKey || !tableName || !record || !record.emp_id) {
+        return res.status(400).json({ success: false, message: 'Parameter URL, anonKey, tableName, dan record karyawan wajib diisi.' });
+      }
+
+      const cleanUrl = url.trim().replace(/\/+$/, '');
+      const cleanTable = tableName.trim();
+      const empId = String(record.emp_id).trim();
+      const tahun = Number(record.tahun);
+      const bulan = Number(record.bulan);
+
+      // 1. Attempt PATCH to update matching record
+      let filterUrl = `${cleanUrl}/rest/v1/${cleanTable}?emp_id=eq.${encodeURIComponent(empId)}`;
+      if (!isNaN(tahun) && !isNaN(bulan)) {
+        filterUrl += `&tahun=eq.${tahun}&bulan=eq.${bulan}`;
+      }
+
+      let patchResp = await fetch(filterUrl, {
+        method: 'PATCH',
+        headers: {
+          'apikey': anonKey,
+          'Authorization': `Bearer ${anonKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(record)
+      });
+
+      if (patchResp.ok) {
+        const patchData = await patchResp.json().catch(() => []);
+        if (Array.isArray(patchData) && patchData.length > 0) {
+          return res.json({ success: true, mode: 'updated', record: patchData[0] });
+        }
+      }
+
+      // 2. If record was not in Supabase yet, attempt standard insert
+      let insertResp = await fetch(`${cleanUrl}/rest/v1/${cleanTable}`, {
+        method: 'POST',
+        headers: {
+          'apikey': anonKey,
+          'Authorization': `Bearer ${anonKey}`,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify([record])
+      });
+
+      if (insertResp.ok) {
+        return res.json({ success: true, mode: 'inserted' });
+      }
+
+      const errText = await insertResp.text();
+      return res.status(insertResp.status).json({ success: false, message: `Supabase single sync gagal (${insertResp.status}): ${errText}` });
+    } catch (err: any) {
+      console.error('[Supabase Proxy] Single sync error:', err);
+      return res.status(500).json({ success: false, message: err?.message || 'Gagal sinkronisasi record ke Supabase' });
     }
   });
 
