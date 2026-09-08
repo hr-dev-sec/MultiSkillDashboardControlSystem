@@ -589,6 +589,9 @@ async function startServer() {
     if (!match) {
       match = errorText.match(/column ['"]([^'"]+)['"] of relation/i);
     }
+    if (!match) {
+      match = errorText.match(/column ['"]([^'"]+)['"] does not exist/i);
+    }
     if (match && match[1]) {
       const col = match[1].trim();
       const cleaned = records.map((r) => {
@@ -601,7 +604,7 @@ async function startServer() {
     return { records, prunedColumn: null };
   };
 
-  // Server-Side Supabase Proxy: Push Batch (Solves browser "TypeError: Failed to fetch" and CORS/payload limits)
+  // Server-Side Supabase Proxy: Push Batch (Solves browser "TypeError: Failed to fetch", CORS, and rate limits)
   app.post('/api/supabase/push-batch', async (req, res) => {
     try {
       const { url, anonKey, tableName, records: initialRecords, mode } = req.body || {};
@@ -611,7 +614,28 @@ async function startServer() {
 
       const cleanUrl = url.trim().replace(/\/+$/, '');
       const cleanTable = tableName.trim();
-      let records = [...initialRecords];
+
+      // 1. Filter out empty or whitespace-only emp_id rows to prevent constraint violations
+      let records = initialRecords.filter((r) => r && String(r.emp_id || '').trim().length > 0);
+      if (records.length === 0) {
+        return res.json({ success: true, count: 0, note: 'Tidak ada baris data valid untuk dikirim' });
+      }
+
+      // 2. Deduplicate within the batch by (emp_id, tahun, bulan)
+      // Postgres ON CONFLICT DO UPDATE throws "cannot affect row a second time" if duplicate keys exist in same batch!
+      if (mode !== 'replace') {
+        const seen = new Set<string>();
+        const deduped: any[] = [];
+        for (let i = records.length - 1; i >= 0; i--) {
+          const r = records[i];
+          const k = `${String(r.emp_id).trim()}_${r.tahun || ''}_${r.bulan || ''}`;
+          if (!seen.has(k)) {
+            seen.add(k);
+            deduped.unshift(r);
+          }
+        }
+        records = deduped;
+      }
 
       // Helper for making fetch to Supabase
       const doPushAttempt = async (targetRecords: any[]) => {
@@ -619,7 +643,7 @@ async function startServer() {
           ? `${cleanUrl}/rest/v1/${cleanTable}`
           : `${cleanUrl}/rest/v1/${cleanTable}?on_conflict=emp_id,tahun,bulan`;
 
-        let response = await fetch(endpoint, {
+        return await fetch(endpoint, {
           method: 'POST',
           headers: {
             'apikey': anonKey,
@@ -629,18 +653,25 @@ async function startServer() {
           },
           body: JSON.stringify(targetRecords)
         });
-
-        return response;
       };
 
       let response = await doPushAttempt(records);
 
+      // Handle Rate Limiting (429) or Server Busy / Gateway Timeout (502, 503, 504) with backoff retry
+      if (response.status === 429 || response.status === 502 || response.status === 503 || response.status === 504) {
+        console.warn(`[Supabase Proxy] Received HTTP ${response.status} from Supabase, backing off for 1200ms...`);
+        await new Promise((r) => setTimeout(r, 1200));
+        response = await doPushAttempt(records);
+      }
+
       if (!response.ok) {
         let errorText = await response.text();
 
-        // Check if error is due to missing column in user's Supabase schema
-        const pruneResult = pruneMissingColumnFromRecords(records, errorText);
-        if (pruneResult.prunedColumn) {
+        // Loop pruning missing columns if schema cache complains (up to 5 iterations for multiple missing columns)
+        let pruneAttempts = 0;
+        while (pruneAttempts < 5) {
+          const pruneResult = pruneMissingColumnFromRecords(records, errorText);
+          if (!pruneResult.prunedColumn) break;
           console.warn(`[Supabase Proxy] Pruning missing column "${pruneResult.prunedColumn}" and retrying...`);
           records = pruneResult.records;
           response = await doPushAttempt(records);
@@ -648,10 +679,23 @@ async function startServer() {
             return res.json({ success: true, count: records.length, note: `Kolom ${pruneResult.prunedColumn} diabaikan (tidak ada di skema Supabase)` });
           }
           errorText = await response.text();
+          pruneAttempts++;
         }
 
         // Fallback 1: If composite onConflict emp_id,tahun,bulan fails due to missing constraint, try onConflict: emp_id
         if (mode !== 'replace' && (errorText.includes('unique') || errorText.includes('constraint') || errorText.includes('ON CONFLICT') || response.status === 400 || response.status === 409)) {
+          // Deduplicate by emp_id for single-column on_conflict
+          const seenEmp = new Set<string>();
+          const dedupedEmp: any[] = [];
+          for (let i = records.length - 1; i >= 0; i--) {
+            const r = records[i];
+            const k = String(r.emp_id).trim();
+            if (!seenEmp.has(k)) {
+              seenEmp.add(k);
+              dedupedEmp.unshift(r);
+            }
+          }
+
           const fbResponse = await fetch(`${cleanUrl}/rest/v1/${cleanTable}?on_conflict=emp_id`, {
             method: 'POST',
             headers: {
@@ -660,26 +704,29 @@ async function startServer() {
               'Content-Type': 'application/json',
               'Prefer': 'resolution=merge-duplicates'
             },
-            body: JSON.stringify(records)
+            body: JSON.stringify(dedupedEmp)
           });
           if (fbResponse.ok) {
-            return res.json({ success: true, count: records.length, note: 'Fallback onConflict emp_id sukses' });
+            return res.json({ success: true, count: dedupedEmp.length, note: 'Fallback onConflict emp_id sukses' });
           }
 
           // Fallback 2 (Atomic Delete-then-Insert): When table has NO unique constraint on emp_id,
-          // delete the old records first so new values REPLACE old values rather than being skipped or duplicated!
+          // delete the old records first in chunks so URL length is never exceeded
           try {
             const empIds = Array.from(new Set(records.map((r: any) => String(r.emp_id || '').trim()).filter(Boolean)));
             if (empIds.length > 0) {
-              const inFilter = empIds.map((id) => `"${encodeURIComponent(id)}"`).join(',');
-              await fetch(`${cleanUrl}/rest/v1/${cleanTable}?emp_id=in.(${inFilter})`, {
-                method: 'DELETE',
-                headers: {
-                  'apikey': anonKey,
-                  'Authorization': `Bearer ${anonKey}`,
-                  'Prefer': 'return=minimal'
-                }
-              });
+              for (let d = 0; d < empIds.length; d += 25) {
+                const subIds = empIds.slice(d, d + 25);
+                const inFilter = subIds.map((id) => `"${encodeURIComponent(id)}"`).join(',');
+                await fetch(`${cleanUrl}/rest/v1/${cleanTable}?emp_id=in.(${inFilter})`, {
+                  method: 'DELETE',
+                  headers: {
+                    'apikey': anonKey,
+                    'Authorization': `Bearer ${anonKey}`,
+                    'Prefer': 'return=minimal'
+                  }
+                });
+              }
             }
 
             const insertResponse = await fetch(`${cleanUrl}/rest/v1/${cleanTable}`, {
@@ -701,7 +748,42 @@ async function startServer() {
           }
         }
 
-        return res.status(response.status).json({ success: false, message: `Supabase error (${response.status}): ${errorText}` });
+        // Fallback 3: Single-Record Rescue
+        // If a batch of rows fails due to one corrupted row or tight constraint, insert records individually
+        let singleSuccessCount = 0;
+        let lastSingleErr = '';
+        for (const item of records) {
+          try {
+            const singleRes = await fetch(`${cleanUrl}/rest/v1/${cleanTable}`, {
+              method: 'POST',
+              headers: {
+                'apikey': anonKey,
+                'Authorization': `Bearer ${anonKey}`,
+                'Content-Type': 'application/json',
+                'Prefer': 'return=minimal'
+              },
+              body: JSON.stringify([item])
+            });
+            if (singleRes.ok) {
+              singleSuccessCount++;
+            } else {
+              lastSingleErr = await singleRes.text();
+            }
+          } catch (sErr: any) {
+            lastSingleErr = sErr?.message || '';
+          }
+        }
+
+        if (singleSuccessCount > 0) {
+          return res.json({
+            success: true,
+            count: singleSuccessCount,
+            partial: singleSuccessCount < records.length,
+            note: `Penyisipan per baris sukses (${singleSuccessCount}/${records.length} data)`
+          });
+        }
+
+        return res.status(response.status).json({ success: false, message: `Supabase error (${response.status}): ${errorText || lastSingleErr}` });
       }
 
       return res.json({ success: true, count: records.length });

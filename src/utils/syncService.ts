@@ -100,15 +100,21 @@ export function getSupabaseConfig(): SupabaseConfig {
  * Safely parse fetch response without throwing "Failed to execute 'json' on 'Response': Unexpected end of JSON input"
  */
 async function safeParseFetchResponse<T = any>(res: Response): Promise<{ ok: boolean; data: T | null; text: string }> {
+  let text = '';
   try {
-    const text = await res.text();
+    text = await res.text();
     if (!text || !text.trim()) {
       return { ok: res.ok, data: null, text: '' };
     }
     const data = JSON.parse(text);
     return { ok: res.ok, data, text };
   } catch (_) {
-    return { ok: false, data: null, text: '' };
+    let cleanText = text;
+    if (cleanText.includes('<html') || cleanText.includes('<!DOCTYPE')) {
+      cleanText = cleanText.replace(/<[^>]*>?/gm, ' ').replace(/\s+/g, ' ').trim();
+      if (cleanText.length > 150) cleanText = cleanText.slice(0, 150) + '...';
+    }
+    return { ok: false, data: null, text: cleanText };
   }
 }
 
@@ -1346,33 +1352,39 @@ export async function pushEmployeesToSupabase(
   const cleanUrl = config.url.trim().replace(/\/+$/, '');
   const mode = options?.mode || 'upsert';
 
-  // Format records strictly for Supabase schema with correct numeric and null handling
-  const payload = employees.map((e) => ({
-    emp_id: String(e.empId || '').trim(),
-    emp_name: String(e.empName || '').trim(),
-    divisi: e.divisi ? String(e.divisi).trim() : null,
-    department: e.department ? String(e.department).trim() : null,
-    section: e.section ? String(e.section).trim() : null,
-    grade: e.grade ? String(e.grade).trim() : null,
-    job_grade: e.jobGrade ? String(e.jobGrade).trim() : null,
-    jabatan: e.jabatan ? String(e.jabatan).trim() : null,
-    gender: e.gender ? String(e.gender).trim() : 'L',
-    tanggal_pensiun: e.tanggalPensiun ? String(e.tanggalPensiun).trim() : null,
-    pic: e.pic ? String(e.pic).trim() : null,
-    tahun: Number(e.tahun) || new Date().getFullYear(),
-    bulan: Number(e.bulan) || (new Date().getMonth() + 1),
-    job_category: e.jobCategory ? String(e.jobCategory).trim() : null,
-    total_score: Number(e.totalScore) || 0,
-    standard: (e.standard !== null && e.standard !== undefined && !isNaN(Number(e.standard))) ? Number(e.standard) : null,
-    result: (e.result && String(e.result).toUpperCase().includes('MS')) ? 'MS' : 'US',
-    gap: Number(e.gap) || 0,
-    skills: (e.skills && typeof e.skills === 'object') ? e.skills : {},
-    updated_at: new Date().toISOString()
-  }));
+  // Format records strictly for Supabase schema with correct numeric, date length, and null handling
+  const payload = employees
+    .filter((e) => e && String(e.empId || '').trim().length > 0)
+    .map((e) => ({
+      emp_id: String(e.empId || '').trim(),
+      emp_name: String(e.empName || '').trim() || 'Karyawan',
+      divisi: e.divisi ? String(e.divisi).trim() : null,
+      department: e.department ? String(e.department).trim() : null,
+      section: e.section ? String(e.section).trim() : null,
+      grade: e.grade ? String(e.grade).trim() : null,
+      job_grade: e.jobGrade ? String(e.jobGrade).trim() : null,
+      jabatan: e.jabatan ? String(e.jabatan).trim() : null,
+      gender: (() => {
+        const g = String(e.gender || '').trim().toUpperCase();
+        if (g.startsWith('P') || g.startsWith('W') || g === 'FEMALE') return 'P';
+        return 'L';
+      })(),
+      tanggal_pensiun: e.tanggalPensiun ? String(e.tanggalPensiun).trim().slice(0, 50) : null,
+      pic: e.pic ? String(e.pic).trim().slice(0, 150) : null,
+      tahun: Number(e.tahun) || new Date().getFullYear(),
+      bulan: Number(e.bulan) || (new Date().getMonth() + 1),
+      job_category: e.jobCategory ? String(e.jobCategory).trim() : null,
+      total_score: isNaN(Number(e.totalScore)) ? 0 : Number(e.totalScore),
+      standard: (e.standard !== null && e.standard !== undefined && !isNaN(Number(e.standard))) ? Number(e.standard) : null,
+      result: (e.result && String(e.result).toUpperCase().includes('MS')) ? 'MS' : 'US',
+      gap: isNaN(Number(e.gap)) ? 0 : Number(e.gap),
+      skills: (e.skills && typeof e.skills === 'object') ? e.skills : {},
+      updated_at: new Date().toISOString()
+    }));
 
   const CHUNK_SIZE = 40;
   const totalRecords = payload.length;
-  const totalBatches = Math.ceil(totalRecords / CHUNK_SIZE);
+  const totalBatches = Math.max(1, Math.ceil(totalRecords / CHUNK_SIZE));
   const client = getSupabaseClient(config);
 
   try {
@@ -1531,6 +1543,8 @@ export async function pushEmployeesToSupabase(
           let allMicroSuccess = true;
           for (let m = 0; m < chunk.length; m += microChunkSize) {
             const micro = chunk.slice(m, m + microChunkSize);
+            // Brief pacing pause between micro-batches
+            await new Promise((r) => setTimeout(r, 80));
             try {
               const microResp = await fetch('/api/supabase/push-batch', {
                 method: 'POST',
@@ -1561,12 +1575,49 @@ export async function pushEmployeesToSupabase(
           }
         }
 
+        // 4. Individual item rescue fallback: if micro-batching failed, try saving items individually
+        if (!batchSuccess) {
+          let singleOkCount = 0;
+          let lastSingleErrMsg = '';
+          for (const item of chunk) {
+            try {
+              const sResp = await fetch('/api/supabase/push-batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  url: config.url,
+                  anonKey: config.anonKey,
+                  tableName,
+                  records: [item],
+                  mode
+                })
+              });
+              const sParsed = await safeParseFetchResponse(sResp);
+              if (sParsed.ok && sParsed.data?.success) {
+                singleOkCount++;
+              } else {
+                lastSingleErrMsg = sParsed.data?.message || sParsed.text || '';
+              }
+            } catch (sEx: any) {
+              lastSingleErrMsg = sEx?.message || '';
+            }
+            await new Promise((r) => setTimeout(r, 40));
+          }
+
+          if (singleOkCount > 0) {
+            batchSuccess = true;
+            break;
+          } else if (lastSingleErrMsg) {
+            batchErrorMessage = lastSingleErrMsg;
+          }
+        }
+
         // If batch succeeded, exit attempt loop
         if (batchSuccess) break;
 
         // If attempt failed, wait briefly before retrying
         if (attempt < 3) {
-          await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
+          await new Promise((resolve) => setTimeout(resolve, 600 * attempt));
         }
       }
 
@@ -1579,7 +1630,7 @@ export async function pushEmployeesToSupabase(
 
       // Gentle pause between batches to prevent socket resets and Cloudflare/PostgREST rate-limiting
       if (i < totalBatches - 1) {
-        await new Promise((resolve) => setTimeout(resolve, 40));
+        await new Promise((resolve) => setTimeout(resolve, 120));
       }
 
       const currentCount = end;
