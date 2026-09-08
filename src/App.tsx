@@ -1113,27 +1113,30 @@ export default function App() {
                 )}
 
                 {supabaseLoadStatus.status === 'connected' && (
-                  <div className="mb-4 px-4 py-2.5 rounded-xl border border-emerald-200 dark:border-emerald-800/50 bg-emerald-50/70 dark:bg-emerald-950/30 flex flex-wrap items-center justify-between gap-3 text-xs text-emerald-900 dark:text-emerald-200">
-                    <div className="flex items-center gap-2.5">
-                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                      <div>
-                        <span className="font-bold">Database Aktif: </span>
-                        <span>Supabase Cloud ({supabaseLoadStatus.tableName}) &bull; <strong>{supabaseLoadStatus.count} karyawan</strong> termuat langsung</span>
-                      </div>
+                  <div className="mb-3 px-3.5 py-2 rounded-xl border border-emerald-200/80 dark:border-emerald-800/40 bg-emerald-50/60 dark:bg-emerald-950/25 flex flex-wrap items-center justify-between gap-2 text-xs text-emerald-900 dark:text-emerald-200 shadow-2xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="relative flex h-2 w-2 shrink-0">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <p className="truncate text-[11px] sm:text-xs">
+                        <span className="font-bold">Database: </span>
+                        <span>Supabase Cloud ({supabaseLoadStatus.tableName}) &bull; <strong className="font-extrabold">{supabaseLoadStatus.count} karyawan</strong> termuat</span>
+                      </p>
                     </div>
-                    <div className="flex items-center gap-2 text-[11px]">
+                    <div className="flex items-center gap-1.5 text-[11px] shrink-0">
                       <button
                         type="button"
                         onClick={handleClearCacheAndReload}
-                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 transition cursor-pointer font-semibold"
+                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-emerald-300 dark:border-emerald-700 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition cursor-pointer font-semibold shadow-2xs"
                         title="Bersihkan cache lokal dan tarik ulang data dari Supabase"
                       >
-                        <i className="fa-solid fa-arrows-rotate mr-1"></i> Refresh Supabase
+                        <i className="fa-solid fa-arrows-rotate mr-1"></i> Refresh
                       </button>
                       <button
                         type="button"
                         onClick={handleOpenSupabaseSettings}
-                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 transition cursor-pointer font-semibold"
+                        className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition cursor-pointer font-semibold shadow-2xs"
                       >
                         <i className="fa-solid fa-cloud mr-1"></i> Konfigurasi
                       </button>

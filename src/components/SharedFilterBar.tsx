@@ -140,7 +140,7 @@ export const SharedFilterBar: React.FC<SharedFilterBarProps> = ({
     <div
       ref={filterBarRef}
       id="shared-filter-bar"
-      className="bg-white/95 dark:bg-[#0A192F]/95 backdrop-blur-md border-b border-slate-200/90 dark:border-white/10 px-3 sm:px-6 py-2 flex flex-wrap items-center justify-between gap-2.5 relative z-30 transition-colors shadow-2xs"
+      className="bg-white/95 dark:bg-[#0A192F]/95 backdrop-blur-md border-b border-slate-200/90 dark:border-white/10 px-3 sm:px-5 lg:px-6 py-2 sm:py-2.5 flex flex-wrap items-center justify-between gap-2 relative z-30 transition-colors shadow-2xs"
     >
       <div className="flex flex-wrap items-center gap-2">
         {/* Filter Title Badge */}

@@ -233,140 +233,172 @@ Laporan resmi terverifikasi sistem: ${new Date().toLocaleString('id-ID')}`;
           : 'bg-slate-50/80 text-slate-900'
       } ${isFullscreen ? 'p-6 sm:p-10 overflow-y-auto' : 'p-4 sm:p-6 lg:p-8 space-y-6'}`}
     >
-      {/* TOP EXECUTIVE BAR: BRANDING & CONTROLS */}
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-4 border-b border-slate-200/80 dark:border-white/10 shrink-0">
-        {/* Left: Corporate Title & Real-Time Indicator */}
-        <div className="flex items-center gap-3.5 min-w-0">
-          <div className="w-12 h-12 rounded-2xl bg-white p-1.5 shrink-0 shadow-md ring-2 ring-amber-400/30 flex items-center justify-center">
-            <img
-              src={AJINOMOTO_LOGO_URL}
-              alt="Logo Ajinomoto"
-              className="max-h-full max-w-full object-contain"
-            />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wider uppercase bg-[#0E2340] text-amber-300 border border-amber-400/40 shadow-xs">
-                Executive Boardroom Briefing
-              </span>
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-                Live Real-Time Data
-              </span>
+      {/* TOP EXECUTIVE CARD: BRANDING, STATS & UNIFIED TOOLBAR */}
+      <div className="bg-white/95 dark:bg-[#0A192F]/95 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-slate-200/90 dark:border-white/10 shadow-xs space-y-4 shrink-0">
+        {/* Tier 1: Corporate Branding, Title & Quick Plant Snapshot */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          {/* Left: Logo & Broad Title */}
+          <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white p-2 shrink-0 shadow-sm ring-2 ring-amber-400/40 flex items-center justify-center border border-slate-100">
+              <img
+                src={AJINOMOTO_LOGO_URL}
+                alt="Logo Ajinomoto"
+                className="max-h-full max-w-full object-contain"
+              />
             </div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-snug">
-              Laporan Eksekutif Multi-Skill to Top Management
-            </h1>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              PT Ajinomoto Indonesia &bull; Mojokerto Factory &bull; Periode: <strong className="text-slate-800 dark:text-slate-200">{blnStr} {thnStr}</strong> &bull; Cakupan: <strong>{divStr}</strong>
-            </p>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold tracking-wider uppercase bg-[#0E2340] text-amber-300 border border-amber-400/40 shadow-2xs">
+                  Executive Boardroom Briefing
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+                  Live Real-Time Data
+                </span>
+              </div>
+              <h1 className="text-lg sm:text-xl lg:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-snug">
+                Laporan Eksekutif Multi-Skill to Top Management
+              </h1>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                PT Ajinomoto Indonesia &bull; Mojokerto Factory &bull; Periode: <strong className="text-amber-600 dark:text-amber-400 font-bold">{blnStr} {thnStr}</strong> &bull; Cakupan: <strong className="text-slate-800 dark:text-slate-200">{divStr}</strong>
+              </p>
+            </div>
+          </div>
+
+          {/* Right: Quick Executive Scorecard Capsule */}
+          <div className="flex items-center gap-3 self-start lg:self-center shrink-0">
+            <div className="flex items-center gap-3 px-3.5 py-2 rounded-xl bg-slate-50 dark:bg-[#071324] border border-slate-200/80 dark:border-white/10 text-xs">
+              <div className="text-center pr-3 border-r border-slate-200 dark:border-white/10">
+                <p className="text-[10px] font-bold uppercase text-slate-400">Total Karyawan</p>
+                <p className="text-sm font-black text-slate-800 dark:text-white">{totalManpower} <span className="text-[10px] font-normal text-slate-400">org</span></p>
+              </div>
+              <div className="text-center pr-3 border-r border-slate-200 dark:border-white/10">
+                <p className="text-[10px] font-bold uppercase text-slate-400">Ketercapaian MS</p>
+                <p className="text-sm font-black text-amber-600 dark:text-amber-400">{pctFormatted}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-[10px] font-bold uppercase text-slate-400">Status Target</p>
+                <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-black ${
+                  isTargetAchieved
+                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300'
+                    : 'bg-amber-100 text-amber-900 dark:bg-amber-950/60 dark:text-amber-300'
+                }`}>
+                  {isTargetAchieved ? `Tercapai (+${gapToTarget}%)` : `Defisit (${gapToTarget}%)`}
+                </span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Right: Presentation Action Controls */}
-        <div className="flex items-center flex-wrap gap-2 shrink-0">
-          {/* View Mode Toggle: Slides vs Briefing */}
-          <div className="flex bg-slate-200/80 dark:bg-slate-800 p-1 rounded-2xl shadow-inner">
+        {/* Tier 2: Dedicated Action Controls Toolbar */}
+        <div className="bg-slate-50/90 dark:bg-[#071324]/90 border border-slate-200/80 dark:border-white/10 p-2 sm:p-2.5 rounded-xl flex flex-wrap items-center justify-between gap-2.5">
+          {/* Left Group: Display Mode & Presentation Controls */}
+          <div className="flex items-center flex-wrap gap-2">
+            {/* View Mode Toggle: Slides vs Briefing */}
+            <div className="flex bg-slate-200/80 dark:bg-slate-800 p-0.5 rounded-xl shadow-inner">
+              <button
+                type="button"
+                onClick={() => setPresentationMode('slides')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  presentationMode === 'slides'
+                    ? 'bg-white dark:bg-[#0E2340] text-[#0E2340] dark:text-amber-300 shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Tampilkan dalam format slide presentasi rapat direksi"
+              >
+                <i className="fa-solid fa-chalkboard text-xs"></i>
+                <span>Slide Deck</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setPresentationMode('briefing')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                  presentationMode === 'briefing'
+                    ? 'bg-white dark:bg-[#0E2340] text-[#0E2340] dark:text-amber-300 shadow-2xs'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                }`}
+                title="Tampilkan seluruh laporan dalam satu lembar eksekutif mengalir"
+              >
+                <i className="fa-solid fa-file-lines text-xs"></i>
+                <span>Full Briefing</span>
+              </button>
+            </div>
+
+            {/* Auto-Play Toggle (For Slides Mode) */}
+            {presentationMode === 'slides' && (
+              <button
+                type="button"
+                onClick={() => setIsAutoPlay(!isAutoPlay)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
+                  isAutoPlay
+                    ? 'bg-amber-500 text-white border-amber-600 shadow-2xs animate-pulse'
+                    : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
+                }`}
+                title="Otomatis putar slide (ideal untuk video wall / layar rapat)"
+              >
+                <i className={`fa-solid ${isAutoPlay ? 'fa-pause' : 'fa-play'} text-xs`}></i>
+                <span>{isAutoPlay ? 'Jeda Kios' : 'Auto-Play'}</span>
+              </button>
+            )}
+
+            {/* Fullscreen Button */}
             <button
               type="button"
-              onClick={() => setPresentationMode('slides')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                presentationMode === 'slides'
-                  ? 'bg-white dark:bg-[#0E2340] text-[#0E2340] dark:text-amber-300 shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-              title="Tampilkan dalam format slide presentasi rapat direksi"
+              onClick={toggleFullscreen}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              title="Buka tampilan layar penuh untuk proyektor / TV rapat (F11)"
             >
-              <i className="fa-solid fa-chalkboard text-xs"></i>
-              <span>Slide Deck</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setPresentationMode('briefing')}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                presentationMode === 'briefing'
-                  ? 'bg-white dark:bg-[#0E2340] text-[#0E2340] dark:text-amber-300 shadow-sm'
-                  : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
-              }`}
-              title="Tampilkan seluruh laporan dalam satu lembar eksekutif mengalir"
-            >
-              <i className="fa-solid fa-file-lines text-xs"></i>
-              <span>Full Briefing</span>
+              <i className={`fa-solid ${isFullscreen ? 'fa-compress' : 'fa-expand'} text-xs`}></i>
+              <span>{isFullscreen ? 'Keluar Fullscreen' : 'Fullscreen'}</span>
             </button>
           </div>
 
-          {/* Auto-Play Toggle (For Slides Mode) */}
-          {presentationMode === 'slides' && (
+          {/* Right Group: Executive Export & Communication Actions */}
+          <div className="flex items-center flex-wrap gap-2">
+            {/* Copy Briefing to Clipboard */}
             <button
               type="button"
-              onClick={() => setIsAutoPlay(!isAutoPlay)}
-              className={`px-3 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-1.5 border cursor-pointer ${
-                isAutoPlay
-                  ? 'bg-amber-500 text-white border-amber-600 shadow-md animate-pulse'
-                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700'
-              }`}
-              title="Otomatis putar slide (ideal untuk video wall / layar rapat)"
+              onClick={handleCopySummary}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition flex items-center gap-1.5 shadow-2xs cursor-pointer"
+              title="Salin ringkasan eksekutif untuk WhatsApp / Email Direksi"
             >
-              <i className={`fa-solid ${isAutoPlay ? 'fa-pause' : 'fa-play'} text-xs`}></i>
-              <span className="hidden sm:inline">{isAutoPlay ? 'Jeda Kios' : 'Auto-Play'}</span>
+              <i className={`fa-solid ${copiedSummary ? 'fa-check' : 'fa-copy'} text-xs`}></i>
+              <span>{copiedSummary ? 'Tersalin!' : 'Salin Draf'}</span>
             </button>
-          )}
 
-          {/* Fullscreen Button */}
-          <button
-            type="button"
-            onClick={toggleFullscreen}
-            className="px-3 py-2 rounded-2xl text-xs font-bold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 transition flex items-center gap-1.5 shadow-xs cursor-pointer"
-            title="Buka tampilan layar penuh untuk proyektor / TV rapat (F11)"
-          >
-            <i className={`fa-solid ${isFullscreen ? 'fa-compress' : 'fa-expand'} text-xs`}></i>
-            <span className="hidden sm:inline">{isFullscreen ? 'Keluar Layar Penuh' : 'Layar Penuh'}</span>
-          </button>
-
-          {/* Copy Briefing to Clipboard */}
-          <button
-            type="button"
-            onClick={handleCopySummary}
-            className="px-3 py-2 rounded-2xl text-xs font-bold bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 transition flex items-center gap-1.5 shadow-xs cursor-pointer"
-            title="Salin ringkasan eksekutif untuk WhatsApp / Email Direksi"
-          >
-            <i className={`fa-solid ${copiedSummary ? 'fa-check' : 'fa-copy'} text-xs`}></i>
-            <span className="hidden md:inline">{copiedSummary ? 'Tersalin!' : 'Salin Draf Direksi'}</span>
-          </button>
-
-          {/* Unduh Slide PowerPoint & Gambar HD Modal */}
-          <button
-            type="button"
-            onClick={() => setIsExportModalOpen(true)}
-            className="px-3.5 py-2 rounded-2xl text-xs font-black bg-gradient-to-r from-amber-500 via-amber-600 to-[#0E2340] hover:from-amber-600 hover:to-slate-900 text-white shadow-md transition flex items-center gap-2 cursor-pointer border border-amber-400/40"
-            title="Unduh Rangkuman Presentasi Direksi sebagai Slide PowerPoint (PDF 16:9) atau Gambar HD"
-          >
-            <i className="fa-solid fa-file-powerpoint text-amber-200 text-sm"></i>
-            <span className="hidden sm:inline">Unduh Slide PPT / Gambar</span>
-            <span className="sm:hidden">PPT / Gambar</span>
-          </button>
-
-          {/* Official PDF Report Export */}
-          {onOpenPdfModal && (
+            {/* Unduh Slide PowerPoint & Gambar HD Modal */}
             <button
               type="button"
-              onClick={onOpenPdfModal}
-              className="px-3.5 py-2 rounded-2xl text-xs font-extrabold bg-[#E10600] hover:bg-red-700 text-white shadow-md transition flex items-center gap-1.5 cursor-pointer"
-              title="Buka Dokumen PDF Resmi Lengkap untuk Dicetak"
+              onClick={() => setIsExportModalOpen(true)}
+              className="px-3.5 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 via-amber-600 to-[#0E2340] hover:from-amber-600 hover:to-slate-900 text-white shadow-2xs transition flex items-center gap-1.5 cursor-pointer border border-amber-400/40"
+              title="Unduh Rangkuman Presentasi Direksi sebagai Slide PowerPoint (PDF 16:9) atau Gambar HD"
             >
-              <i className="fa-solid fa-file-pdf text-xs"></i>
-              <span>Cetak Laporan PDF</span>
+              <i className="fa-solid fa-file-powerpoint text-amber-200 text-xs"></i>
+              <span>Unduh Slide PPT / Gambar</span>
             </button>
-          )}
+
+            {/* Official PDF Report Export */}
+            {onOpenPdfModal && (
+              <button
+                type="button"
+                onClick={onOpenPdfModal}
+                className="px-3.5 py-1.5 rounded-xl text-xs font-extrabold bg-[#E10600] hover:bg-red-700 text-white shadow-2xs transition flex items-center gap-1.5 cursor-pointer"
+                title="Buka Dokumen PDF Resmi Lengkap untuk Dicetak"
+              >
+                <i className="fa-solid fa-file-pdf text-xs"></i>
+                <span>Cetak PDF</span>
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
       {/* SLIDE NAVIGATION BAR (When in Slides Mode) */}
       {presentationMode === 'slides' && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            {/* Slide tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto py-1 max-w-full">
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between flex-wrap gap-3 bg-white/70 dark:bg-[#0A192F]/70 backdrop-blur-sm p-2 rounded-2xl border border-slate-200/80 dark:border-white/10 shadow-2xs">
+            {/* Slide tabs with smooth horizontal scroll */}
+            <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-full scrollbar-none flex-1 min-w-0">
               {slideTitles.map((slide) => {
                 const isActive = currentSlide === slide.num;
                 return (
@@ -377,28 +409,28 @@ Laporan resmi terverifikasi sistem: ${new Date().toLocaleString('id-ID')}`;
                       setCurrentSlide(slide.num);
                       setAutoPlayProgress(0);
                     }}
-                    className={`px-3 py-2 rounded-2xl text-xs font-bold transition flex items-center gap-2 shrink-0 cursor-pointer ${
+                    className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer border shadow-2xs ${
                       isActive
-                        ? 'bg-[#0E2340] text-amber-300 shadow-md border border-amber-400/40 scale-102'
-                        : 'bg-white dark:bg-slate-800/90 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 hover:border-slate-400'
+                        ? 'bg-[#0E2340] text-amber-300 border-amber-400/50 shadow-xs'
+                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
                     }`}
                   >
-                    <span className={`w-5 h-5 rounded-lg flex items-center justify-center text-[10px] font-mono font-black ${
+                    <span className={`w-4 h-4 sm:w-5 sm:h-5 rounded-md flex items-center justify-center text-[10px] font-mono font-black ${
                       isActive ? 'bg-amber-400 text-slate-950' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
                     }`}>
                       {slide.num}
                     </span>
-                    <i className={`fa-solid ${slide.icon} text-xs ${isActive ? 'text-amber-400' : 'text-slate-400'}`}></i>
-                    <span className="hidden md:inline">{slide.title}</span>
+                    <i className={`fa-solid ${slide.icon} text-[11px] ${isActive ? 'text-amber-400' : 'text-slate-400'}`}></i>
+                    <span className="hidden sm:inline text-xs">{slide.title}</span>
                   </button>
                 );
               })}
             </div>
 
             {/* Slide Arrows & Progress Counter */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-bold text-slate-500 dark:text-slate-400">
-                Slide <strong>{currentSlide}</strong> dari {totalSlides}
+            <div className="flex items-center gap-2 shrink-0 pl-2 border-l border-slate-200 dark:border-white/10">
+              <span className="text-xs font-mono font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                <strong>{currentSlide}</strong> / {totalSlides}
               </span>
               <button
                 type="button"
@@ -407,7 +439,7 @@ Laporan resmi terverifikasi sistem: ${new Date().toLocaleString('id-ID')}`;
                   setCurrentSlide((prev) => Math.max(1, prev - 1));
                   setAutoPlayProgress(0);
                 }}
-                className="w-9 h-9 rounded-xl flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition shadow-xs"
+                className="w-8 h-8 rounded-lg flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition shadow-2xs"
                 title="Slide Sebelumnya (Panah Kiri)"
               >
                 <i className="fa-solid fa-chevron-left text-xs"></i>
@@ -419,7 +451,7 @@ Laporan resmi terverifikasi sistem: ${new Date().toLocaleString('id-ID')}`;
                   setCurrentSlide((prev) => Math.min(totalSlides, prev + 1));
                   setAutoPlayProgress(0);
                 }}
-                className="w-9 h-9 rounded-xl flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition shadow-xs"
+                className="w-8 h-8 rounded-lg flex items-center justify-center bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition shadow-2xs"
                 title="Slide Selanjutnya (Panah Kanan / Spasi)"
               >
                 <i className="fa-solid fa-chevron-right text-xs"></i>
