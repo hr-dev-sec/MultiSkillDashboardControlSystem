@@ -16,6 +16,7 @@ import {
 } from 'chart.js';
 import { Bar, Doughnut } from 'react-chartjs-2';
 import { DashboardStats } from '../types';
+import { AJINOMOTO_LOGO_URL } from '../utils/storage';
 
 // Custom Chart.js Plugin for Minimalist Soft Shadow & Glow
 const softShadowPlugin: Plugin = {
@@ -892,8 +893,9 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           }`}
         />
 
-        <div className="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-5">
-          <div className="flex-1 min-w-0 space-y-2">
+        <div className="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
+          {/* Left Column: Title, Badges, & Executive Description */}
+          <div className="flex-1 min-w-0 space-y-2.5">
             <div className="flex flex-wrap items-center gap-2">
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider whitespace-nowrap shadow-2xs ${
                 isDarkMode
@@ -912,23 +914,85 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <i className={`fa-solid ${isDarkMode ? 'fa-moon text-cyan-300' : 'fa-sun text-amber-500'}`}></i>
                 <span>{isDarkMode ? 'Mode Gelap (Midnight Cyber)' : 'Mode Terang (Daylight Pro)'}</span>
               </span>
+              <span
+                className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold whitespace-nowrap shadow-2xs ${
+                  isTargetAchieved
+                    ? isDarkMode
+                      ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                      : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    : isDarkMode
+                      ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                      : 'bg-rose-50 text-rose-800 border border-rose-200'
+                }`}
+              >
+                <i className={`fa-solid ${isTargetAchieved ? 'fa-circle-check text-emerald-400' : 'fa-circle-exclamation text-rose-400'}`}></i>
+                <span>Overall: {pctFormatted} ({isTargetAchieved ? 'Target Tercapai' : `Gap -${gapToTarget}%`})</span>
+              </span>
             </div>
+
             <h2 className={`text-lg sm:text-xl lg:text-2xl font-display font-extrabold tracking-tight flex items-center gap-2 ${
               isDarkMode ? 'text-white' : 'text-slate-900'
             }`}>
               <span>Ringkasan Eksekutif Pemantauan Multi-Skill</span>
             </h2>
+
             <p className={`text-xs sm:text-[13px] max-w-2xl xl:max-w-3xl leading-relaxed ${
               isDarkMode ? 'text-white/80' : 'text-slate-600'
             }`}>
               Pemantauan kompetensi 92 keahlian operasional seluruh insan Ajinomoto lintas divisi, departemen, dan level jabatan di Pabrik Mojokerto. Standar kelulusan minimum: Dept. Manager up (&ge;4 seksi) &middot; ASM-SM (&ge;3 seksi) &middot; LL-Foreman (&ge;2 seksi).
             </p>
+
+            {/* Quick Status Chips */}
+            <div className="flex flex-wrap items-center gap-2 pt-0.5 text-[11px]">
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg font-semibold ${
+                isDarkMode ? 'bg-white/5 text-slate-300 border border-white/10' : 'bg-slate-100 text-slate-700 border border-slate-200'
+              }`}>
+                <i className="fa-solid fa-users text-[10px] text-sky-500"></i>
+                Total Karyawan: <b className="font-bold text-slate-900 dark:text-white">{totalManpower} Orang</b>
+              </span>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg font-semibold ${
+                isDarkMode ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+              }`}>
+                <i className="fa-solid fa-check-double text-[10px] text-emerald-500"></i>
+                Lulus MS: <b className="font-bold text-emerald-600 dark:text-emerald-300">{totalMS} ({pctFormatted})</b>
+              </span>
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg font-semibold ${
+                isDarkMode ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20' : 'bg-amber-50 text-amber-700 border border-amber-200'
+              }`}>
+                <i className="fa-solid fa-layer-group text-[10px] text-amber-500"></i>
+                92 Kompetensi Teknis
+              </span>
+            </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row xl:flex-col items-start sm:items-center xl:items-end gap-2.5 shrink-0">
-            {/* Metric Cards Row */}
-            <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
-              <div className={`px-3.5 py-2 rounded-2xl border backdrop-blur-md shadow-2xs flex-1 sm:flex-initial text-center sm:text-left ${
+          {/* Right Column: Ajinomoto Official Brand Card + KPI Indicators + Action Buttons */}
+          <div className="flex flex-col lg:flex-row xl:flex-col items-stretch lg:items-center xl:items-end gap-3 shrink-0">
+            {/* Top Row: Official Ajinomoto Brand Crest Card & KPI Metrics */}
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5">
+              {/* Ajinomoto Official Logo Card */}
+              <div className={`flex items-center gap-3 px-3.5 py-2 rounded-2xl border backdrop-blur-md shadow-2xs ${
+                isDarkMode
+                  ? 'bg-white/10 border-white/15 text-white'
+                  : 'bg-slate-50 border-slate-200/80 text-slate-800'
+              }`}>
+                <div className="w-10 h-10 rounded-xl bg-white p-1.5 shadow-xs flex items-center justify-center shrink-0 border border-slate-200/60">
+                  <img
+                    src={AJINOMOTO_LOGO_URL}
+                    alt="Logo Resmi Ajinomoto"
+                    className="w-full h-full object-contain"
+                    referrerPolicy="no-referrer"
+                  />
+                </div>
+                <div className="leading-tight pr-1">
+                  <p className="text-[11px] font-black tracking-tight text-red-600 dark:text-red-400">AJINOMOTO</p>
+                  <p className={`text-[9px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-white/60' : 'text-slate-500'}`}>
+                    Mojokerto Factory
+                  </p>
+                </div>
+              </div>
+
+              {/* Metric Card 1: Target Pabrik */}
+              <div className={`px-3.5 py-2 rounded-2xl border backdrop-blur-md shadow-2xs text-center sm:text-left ${
                 isDarkMode
                   ? 'bg-white/10 border-white/15 text-white'
                   : 'bg-slate-50 border-slate-200/80 text-slate-800'
@@ -936,15 +1000,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <p className={`text-[10px] uppercase font-bold tracking-wider ${isDarkMode ? 'text-white/60' : 'text-slate-500'} whitespace-nowrap`}>Target Pabrik</p>
                 <p className="text-sm sm:text-base font-black text-amber-600 dark:text-amber-300">80.0%</p>
               </div>
-              <div className={`px-3.5 py-2 rounded-2xl border backdrop-blur-md shadow-2xs flex-1 sm:flex-initial text-center sm:text-left ${
+
+              {/* Metric Card 2: Divisi Terbaik */}
+              <div className={`px-3.5 py-2 rounded-2xl border backdrop-blur-md shadow-2xs text-center sm:text-left ${
                 isDarkMode
                   ? 'bg-white/10 border-white/15 text-white'
                   : 'bg-slate-50 border-slate-200/80 text-slate-800'
               }`}>
                 <p className={`text-[10px] uppercase font-bold tracking-wider ${isDarkMode ? 'text-white/60' : 'text-slate-500'} whitespace-nowrap`}>Divisi Terbaik</p>
-                <p className="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-300 truncate max-w-[130px] sm:max-w-none">{topDivisi ? topDivisi.label : '-'}</p>
+                <p className="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-300 truncate max-w-[130px] sm:max-w-[150px]">{topDivisi ? topDivisi.label : '-'}</p>
               </div>
-              <div className={`px-3.5 py-2 rounded-2xl border backdrop-blur-md shadow-2xs flex-1 sm:flex-initial text-center sm:text-left ${
+
+              {/* Metric Card 3: Pencapaian Tertinggi */}
+              <div className={`px-3.5 py-2 rounded-2xl border backdrop-blur-md shadow-2xs text-center sm:text-left ${
                 isDarkMode
                   ? 'bg-white/10 border-white/15 text-white'
                   : 'bg-slate-50 border-slate-200/80 text-slate-800'
@@ -954,7 +1022,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </div>
             </div>
 
-            {/* Action Buttons Row */}
+            {/* Bottom Row: Executive Action Buttons */}
             <div className="flex items-center gap-2 sm:gap-2.5 w-full sm:w-auto justify-start sm:justify-end">
               {onOpenPresentation && (
                 <motion.button
