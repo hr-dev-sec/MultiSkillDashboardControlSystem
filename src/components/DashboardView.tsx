@@ -893,9 +893,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           }`}
         />
 
-        <div className="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-          {/* Left Column: Title, Badges, & Executive Description */}
-          <div className="flex-1 min-w-0 space-y-2.5">
+        <div className="relative z-10 space-y-4 sm:space-y-5">
+          {/* Top Section: Badges, Title, Description, & Quick Chips */}
+          <div className="space-y-2.5">
+            {/* Badges Row */}
             <div className="flex flex-wrap items-center gap-2">
               <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider whitespace-nowrap shadow-2xs ${
                 isDarkMode
@@ -915,7 +916,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span>{isDarkMode ? 'Mode Gelap (Midnight Cyber)' : 'Mode Terang (Daylight Pro)'}</span>
               </span>
               <span
-                className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold whitespace-nowrap shadow-2xs ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold whitespace-nowrap shadow-2xs ${
                   isTargetAchieved
                     ? isDarkMode
                       ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
@@ -930,13 +931,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </span>
             </div>
 
+            {/* Title */}
             <h2 className={`text-lg sm:text-xl lg:text-2xl font-display font-extrabold tracking-tight flex items-center gap-2 ${
               isDarkMode ? 'text-white' : 'text-slate-900'
             }`}>
               <span>Ringkasan Eksekutif Pemantauan Multi-Skill</span>
             </h2>
 
-            <p className={`text-xs sm:text-[13px] max-w-2xl xl:max-w-3xl leading-relaxed ${
+            {/* Description */}
+            <p className={`text-xs sm:text-[13px] max-w-4xl leading-relaxed ${
               isDarkMode ? 'text-white/80' : 'text-slate-600'
             }`}>
               Pemantauan kompetensi 92 keahlian operasional seluruh insan Ajinomoto lintas divisi, departemen, dan level jabatan di Pabrik Mojokerto. Standar kelulusan minimum: Dept. Manager up (&ge;4 seksi) &middot; ASM-SM (&ge;3 seksi) &middot; LL-Foreman (&ge;2 seksi).
@@ -944,19 +947,19 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
             {/* Quick Status Chips */}
             <div className="flex flex-wrap items-center gap-2 pt-0.5 text-[11px]">
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg font-semibold ${
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold shadow-2xs ${
                 isDarkMode ? 'bg-white/5 text-slate-300 border border-white/10' : 'bg-slate-100 text-slate-700 border border-slate-200'
               }`}>
                 <i className="fa-solid fa-users text-[10px] text-sky-500"></i>
                 Total Karyawan: <b className="font-bold text-slate-900 dark:text-white">{totalManpower} Orang</b>
               </span>
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg font-semibold ${
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold shadow-2xs ${
                 isDarkMode ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/20' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
               }`}>
                 <i className="fa-solid fa-check-double text-[10px] text-emerald-500"></i>
                 Lulus MS: <b className="font-bold text-emerald-600 dark:text-emerald-300">{totalMS} ({pctFormatted})</b>
               </span>
-              <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg font-semibold ${
+              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold shadow-2xs ${
                 isDarkMode ? 'bg-amber-500/10 text-amber-300 border border-amber-500/20' : 'bg-amber-50 text-amber-700 border border-amber-200'
               }`}>
                 <i className="fa-solid fa-layer-group text-[10px] text-amber-500"></i>
@@ -965,17 +968,17 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </div>
           </div>
 
-          {/* Right Column: Ajinomoto Official Brand Card + KPI Indicators + Action Buttons */}
-          <div className="flex flex-col lg:flex-row xl:flex-col items-stretch lg:items-center xl:items-end gap-3 shrink-0">
-            {/* Top Row: Official Ajinomoto Brand Crest Card & KPI Metrics */}
-            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-2.5">
+          {/* Bottom Control & Metrics Strip: Resilient, Proportional, & Non-Overflowing */}
+          <div className="pt-3.5 border-t border-slate-200/80 dark:border-white/10 flex flex-wrap items-center justify-between gap-3">
+            {/* KPI Metrics & Brand Group */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
               {/* Ajinomoto Official Logo Card */}
-              <div className={`flex items-center gap-3 px-3.5 py-2 rounded-2xl border backdrop-blur-md shadow-2xs ${
+              <div className={`flex items-center gap-2.5 px-3 py-1.5 rounded-2xl border backdrop-blur-md shadow-2xs ${
                 isDarkMode
                   ? 'bg-white/10 border-white/15 text-white'
                   : 'bg-slate-50 border-slate-200/80 text-slate-800'
               }`}>
-                <div className="w-10 h-10 rounded-xl bg-white p-1.5 shadow-xs flex items-center justify-center shrink-0 border border-slate-200/60">
+                <div className="w-8 h-8 rounded-xl bg-white p-1 shadow-xs flex items-center justify-center shrink-0 border border-slate-200/60">
                   <img
                     src={AJINOMOTO_LOGO_URL}
                     alt="Logo Resmi Ajinomoto"
@@ -985,57 +988,56 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </div>
                 <div className="leading-tight pr-1">
                   <p className="text-[11px] font-black tracking-tight text-red-600 dark:text-red-400">AJINOMOTO</p>
-                  <p className={`text-[9px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-white/60' : 'text-slate-500'}`}>
+                  <p className={`text-[8.5px] font-bold uppercase tracking-wider ${isDarkMode ? 'text-white/60' : 'text-slate-500'}`}>
                     Mojokerto Factory
                   </p>
                 </div>
               </div>
 
               {/* Metric Card 1: Target Pabrik */}
-              <div className={`px-3.5 py-2 rounded-2xl border backdrop-blur-md shadow-2xs text-center sm:text-left ${
+              <div className={`px-3 py-1.5 rounded-2xl border backdrop-blur-md shadow-2xs text-left ${
                 isDarkMode
                   ? 'bg-white/10 border-white/15 text-white'
                   : 'bg-slate-50 border-slate-200/80 text-slate-800'
               }`}>
-                <p className={`text-[10px] uppercase font-bold tracking-wider ${isDarkMode ? 'text-white/60' : 'text-slate-500'} whitespace-nowrap`}>Target Pabrik</p>
+                <p className={`text-[9.5px] uppercase font-bold tracking-wider ${isDarkMode ? 'text-white/60' : 'text-slate-500'} whitespace-nowrap`}>Target Pabrik</p>
                 <p className="text-sm sm:text-base font-black text-amber-600 dark:text-amber-300">80.0%</p>
               </div>
 
               {/* Metric Card 2: Divisi Terbaik */}
-              <div className={`px-3.5 py-2 rounded-2xl border backdrop-blur-md shadow-2xs text-center sm:text-left ${
+              <div className={`px-3 py-1.5 rounded-2xl border backdrop-blur-md shadow-2xs text-left ${
                 isDarkMode
                   ? 'bg-white/10 border-white/15 text-white'
                   : 'bg-slate-50 border-slate-200/80 text-slate-800'
               }`}>
-                <p className={`text-[10px] uppercase font-bold tracking-wider ${isDarkMode ? 'text-white/60' : 'text-slate-500'} whitespace-nowrap`}>Divisi Terbaik</p>
-                <p className="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-300 truncate max-w-[130px] sm:max-w-[150px]">{topDivisi ? topDivisi.label : '-'}</p>
+                <p className={`text-[9.5px] uppercase font-bold tracking-wider ${isDarkMode ? 'text-white/60' : 'text-slate-500'} whitespace-nowrap`}>Divisi Terbaik</p>
+                <p className="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-300 truncate max-w-[130px] sm:max-w-[170px]">{topDivisi ? topDivisi.label : '-'}</p>
               </div>
 
               {/* Metric Card 3: Pencapaian Tertinggi */}
-              <div className={`px-3.5 py-2 rounded-2xl border backdrop-blur-md shadow-2xs text-center sm:text-left ${
+              <div className={`px-3 py-1.5 rounded-2xl border backdrop-blur-md shadow-2xs text-left ${
                 isDarkMode
                   ? 'bg-white/10 border-white/15 text-white'
                   : 'bg-slate-50 border-slate-200/80 text-slate-800'
               }`}>
-                <p className={`text-[10px] uppercase font-bold tracking-wider ${isDarkMode ? 'text-white/60' : 'text-slate-500'} whitespace-nowrap`}>Pencapaian Tertinggi</p>
+                <p className={`text-[9.5px] uppercase font-bold tracking-wider ${isDarkMode ? 'text-white/60' : 'text-slate-500'} whitespace-nowrap`}>Pencapaian Tertinggi</p>
                 <p className="text-sm sm:text-base font-black text-slate-900 dark:text-white">{topDivisiRate}</p>
               </div>
             </div>
 
-            {/* Bottom Row: Executive Action Buttons */}
-            <div className="flex items-center gap-2 sm:gap-2.5 w-full sm:w-auto justify-start sm:justify-end">
+            {/* Action Buttons Group */}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 shrink-0 ml-auto sm:ml-0">
               {onOpenPresentation && (
                 <motion.button
                   type="button"
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.96 }}
                   onClick={onOpenPresentation}
-                  className="flex-1 sm:flex-initial px-4 py-2 sm:py-2.5 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer bg-gradient-to-r from-amber-500 via-amber-600 to-[#0E2340] hover:from-amber-600 hover:to-slate-900 text-white border border-amber-400/40 whitespace-nowrap"
+                  className="px-3.5 py-2 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer bg-gradient-to-r from-amber-500 via-amber-600 to-[#0E2340] hover:from-amber-600 hover:to-slate-900 text-white border border-amber-400/40 whitespace-nowrap"
                   title="Buka Mode Presentasi Eksekutif & Laporan to Top Management"
                 >
-                  <i className="fa-solid fa-chalkboard-user text-sm text-amber-200"></i>
-                  <span className="hidden sm:inline">Presentasi Direksi</span>
-                  <span className="sm:hidden">Briefing</span>
+                  <i className="fa-solid fa-chalkboard-user text-xs text-amber-200"></i>
+                  <span>Presentasi Direksi</span>
                 </motion.button>
               )}
 
@@ -1045,12 +1047,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                   whileHover={{ scale: 1.03 }}
                   whileTap={{ scale: 0.96 }}
                   onClick={onOpenPdfModal}
-                  className="flex-1 sm:flex-initial px-4 py-2 sm:py-2.5 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer bg-red-600 hover:bg-red-700 text-white whitespace-nowrap"
+                  className="px-3.5 py-2 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer bg-red-600 hover:bg-red-700 text-white whitespace-nowrap"
                   title="Cetak & Unduh Laporan PDF Resmi Standar PT Ajinomoto Indonesia"
                 >
-                  <i className="fa-solid fa-file-pdf text-sm"></i>
-                  <span className="hidden sm:inline">Cetak Laporan PDF</span>
-                  <span className="sm:hidden">PDF</span>
+                  <i className="fa-solid fa-file-pdf text-xs"></i>
+                  <span>Cetak Laporan PDF</span>
                 </motion.button>
               )}
             </div>
