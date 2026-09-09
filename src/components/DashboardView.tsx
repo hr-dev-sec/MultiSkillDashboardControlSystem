@@ -892,19 +892,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           }`}
         />
 
-        <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          <div className="space-y-2">
+        <div className="relative z-10 flex flex-col xl:flex-row xl:items-center justify-between gap-5">
+          <div className="flex-1 min-w-0 space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+              <span className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider whitespace-nowrap shadow-2xs ${
                 isDarkMode
                   ? 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
                   : 'bg-amber-50 text-amber-800 border border-amber-200'
               }`}>
                 PT Ajinomoto Indonesia - PT Ajinex International &bull; Mojokerto
               </span>
-              <span className={`text-xs hidden sm:inline ${isDarkMode ? 'text-white/40' : 'text-slate-300'}`}>&bull;</span>
               <span
-                className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
+                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold whitespace-nowrap shadow-2xs ${
                   isDarkMode
                     ? 'bg-slate-900/90 text-cyan-300 border border-cyan-400/30 shadow-[0_0_10px_rgba(34,211,238,0.2)]'
                     : 'bg-slate-100 text-slate-700 border border-slate-200'
@@ -914,73 +913,79 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span>{isDarkMode ? 'Mode Gelap (Midnight Cyber)' : 'Mode Terang (Daylight Pro)'}</span>
               </span>
             </div>
-            <h2 className={`text-lg sm:text-xl font-display font-extrabold tracking-tight flex items-center gap-2 ${
+            <h2 className={`text-lg sm:text-xl lg:text-2xl font-display font-extrabold tracking-tight flex items-center gap-2 ${
               isDarkMode ? 'text-white' : 'text-slate-900'
             }`}>
               <span>Ringkasan Eksekutif Pemantauan Multi-Skill</span>
             </h2>
-            <p className={`text-xs max-w-2xl leading-relaxed ${
+            <p className={`text-xs sm:text-[13px] max-w-2xl xl:max-w-3xl leading-relaxed ${
               isDarkMode ? 'text-white/80' : 'text-slate-600'
             }`}>
               Pemantauan kompetensi 92 keahlian operasional seluruh insan Ajinomoto lintas divisi, departemen, dan level jabatan di Pabrik Mojokerto. Standar kelulusan minimum: Dept. Manager up (&ge;4 seksi) &middot; ASM-SM (&ge;3 seksi) &middot; LL-Foreman (&ge;2 seksi).
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 shrink-0">
-            <div className={`px-4 py-2.5 rounded-2xl border backdrop-blur-md shadow-xs ${
-              isDarkMode
-                ? 'bg-white/10 border-white/15 text-white'
-                : 'bg-slate-50 border-slate-200/80 text-slate-800'
-            }`}>
-              <p className={`text-[10px] uppercase font-bold ${isDarkMode ? 'text-white/60' : 'text-slate-500'}`}>Target Pabrik</p>
-              <p className="text-base font-black text-amber-600 dark:text-amber-300">80.0%</p>
-            </div>
-            <div className={`px-4 py-2.5 rounded-2xl border backdrop-blur-md shadow-xs ${
-              isDarkMode
-                ? 'bg-white/10 border-white/15 text-white'
-                : 'bg-slate-50 border-slate-200/80 text-slate-800'
-            }`}>
-              <p className={`text-[10px] uppercase font-bold ${isDarkMode ? 'text-white/60' : 'text-slate-500'}`}>Divisi Terbaik</p>
-              <p className="text-base font-black text-emerald-600 dark:text-emerald-300">{topDivisi ? topDivisi.label : '-'}</p>
-            </div>
-            <div className={`px-4 py-2.5 rounded-2xl border backdrop-blur-md shadow-xs ${
-              isDarkMode
-                ? 'bg-white/10 border-white/15 text-white'
-                : 'bg-slate-50 border-slate-200/80 text-slate-800'
-            }`}>
-              <p className={`text-[10px] uppercase font-bold ${isDarkMode ? 'text-white/60' : 'text-slate-500'}`}>Pencapaian Tertinggi</p>
-              <p className="text-base font-black text-slate-900 dark:text-white">{topDivisiRate}</p>
+          <div className="flex flex-col sm:flex-row xl:flex-col items-start sm:items-center xl:items-end gap-2.5 shrink-0">
+            {/* Metric Cards Row */}
+            <div className="grid grid-cols-3 sm:flex sm:items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
+              <div className={`px-3.5 py-2 rounded-2xl border backdrop-blur-md shadow-2xs flex-1 sm:flex-initial text-center sm:text-left ${
+                isDarkMode
+                  ? 'bg-white/10 border-white/15 text-white'
+                  : 'bg-slate-50 border-slate-200/80 text-slate-800'
+              }`}>
+                <p className={`text-[10px] uppercase font-bold tracking-wider ${isDarkMode ? 'text-white/60' : 'text-slate-500'} whitespace-nowrap`}>Target Pabrik</p>
+                <p className="text-sm sm:text-base font-black text-amber-600 dark:text-amber-300">80.0%</p>
+              </div>
+              <div className={`px-3.5 py-2 rounded-2xl border backdrop-blur-md shadow-2xs flex-1 sm:flex-initial text-center sm:text-left ${
+                isDarkMode
+                  ? 'bg-white/10 border-white/15 text-white'
+                  : 'bg-slate-50 border-slate-200/80 text-slate-800'
+              }`}>
+                <p className={`text-[10px] uppercase font-bold tracking-wider ${isDarkMode ? 'text-white/60' : 'text-slate-500'} whitespace-nowrap`}>Divisi Terbaik</p>
+                <p className="text-sm sm:text-base font-black text-emerald-600 dark:text-emerald-300 truncate max-w-[130px] sm:max-w-none">{topDivisi ? topDivisi.label : '-'}</p>
+              </div>
+              <div className={`px-3.5 py-2 rounded-2xl border backdrop-blur-md shadow-2xs flex-1 sm:flex-initial text-center sm:text-left ${
+                isDarkMode
+                  ? 'bg-white/10 border-white/15 text-white'
+                  : 'bg-slate-50 border-slate-200/80 text-slate-800'
+              }`}>
+                <p className={`text-[10px] uppercase font-bold tracking-wider ${isDarkMode ? 'text-white/60' : 'text-slate-500'} whitespace-nowrap`}>Pencapaian Tertinggi</p>
+                <p className="text-sm sm:text-base font-black text-slate-900 dark:text-white">{topDivisiRate}</p>
+              </div>
             </div>
 
-            {onOpenPresentation && (
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={onOpenPresentation}
-                className="px-4 py-2.5 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-sm transition-all cursor-pointer bg-gradient-to-r from-amber-500 via-amber-600 to-[#0E2340] hover:from-amber-600 hover:to-slate-900 text-white border border-amber-400/40"
-                title="Buka Mode Presentasi Eksekutif & Laporan to Top Management"
-              >
-                <i className="fa-solid fa-chalkboard-user text-sm text-amber-200"></i>
-                <span className="hidden sm:inline">Presentasi Direksi</span>
-                <span className="sm:hidden">Briefing</span>
-              </motion.button>
-            )}
+            {/* Action Buttons Row */}
+            <div className="flex items-center gap-2 sm:gap-2.5 w-full sm:w-auto justify-start sm:justify-end">
+              {onOpenPresentation && (
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={onOpenPresentation}
+                  className="flex-1 sm:flex-initial px-4 py-2 sm:py-2.5 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer bg-gradient-to-r from-amber-500 via-amber-600 to-[#0E2340] hover:from-amber-600 hover:to-slate-900 text-white border border-amber-400/40 whitespace-nowrap"
+                  title="Buka Mode Presentasi Eksekutif & Laporan to Top Management"
+                >
+                  <i className="fa-solid fa-chalkboard-user text-sm text-amber-200"></i>
+                  <span className="hidden sm:inline">Presentasi Direksi</span>
+                  <span className="sm:hidden">Briefing</span>
+                </motion.button>
+              )}
 
-            {onOpenPdfModal && (
-              <motion.button
-                type="button"
-                whileHover={{ scale: 1.04 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={onOpenPdfModal}
-                className="px-4 py-2.5 rounded-2xl font-bold text-xs flex items-center gap-2 shadow-sm transition-colors cursor-pointer bg-red-600 hover:bg-red-700 text-white"
-                title="Cetak & Unduh Laporan PDF Resmi Standar PT Ajinomoto Indonesia"
-              >
-                <i className="fa-solid fa-file-pdf text-sm"></i>
-                <span className="hidden sm:inline">Cetak Laporan PDF</span>
-                <span className="sm:hidden">PDF</span>
-              </motion.button>
-            )}
+              {onOpenPdfModal && (
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.03 }}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={onOpenPdfModal}
+                  className="flex-1 sm:flex-initial px-4 py-2 sm:py-2.5 rounded-2xl font-bold text-xs flex items-center justify-center gap-2 shadow-xs transition-colors cursor-pointer bg-red-600 hover:bg-red-700 text-white whitespace-nowrap"
+                  title="Cetak & Unduh Laporan PDF Resmi Standar PT Ajinomoto Indonesia"
+                >
+                  <i className="fa-solid fa-file-pdf text-sm"></i>
+                  <span className="hidden sm:inline">Cetak Laporan PDF</span>
+                  <span className="sm:hidden">PDF</span>
+                </motion.button>
+              )}
+            </div>
           </div>
         </div>
       </motion.div>
