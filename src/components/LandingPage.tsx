@@ -54,6 +54,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const [activeLadderLevel, setActiveLadderLevel] = useState<number>(3);
   const [activeConsoleTab, setActiveConsoleTab] = useState<'simulator' | 'radar' | 'leaderboard'>('simulator');
 
+  // Smooth scroll to section without exposing #hash in browser address bar
+  const scrollToSection = (sectionId: string) => {
+    const el = document.getElementById(sectionId);
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  };
+
+  // Clean up any residual URL hash and handle direct hash landing cleanly
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hashId = window.location.hash.replace(/^#/, '');
+      if (hashId) {
+        setTimeout(() => {
+          document.getElementById(hashId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 150);
+      }
+      try {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      } catch (_) {}
+    }
+  }, []);
+
   // Employee data currently chosen for Sandbox
   const currentSandboxEmp: Employee | null = useMemo(() => {
     if (activePeriodEmployees.length > 0) {
@@ -342,32 +365,35 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
           </div>
 
-          {/* Quick Nav Anchors (Desktop) */}
+          {/* Quick Nav (Desktop) */}
           <nav className="hidden lg:flex items-center gap-1 px-3 py-1.5 rounded-2xl bg-slate-100/70 dark:bg-[#070D19]/70 border border-slate-200/60 dark:border-white/5 text-xs font-bold">
-            <a
-              href="#simulator"
-              className={`px-3 py-1.5 rounded-xl transition ${
+            <button
+              type="button"
+              onClick={() => scrollToSection('simulator')}
+              className={`px-3 py-1.5 rounded-xl transition cursor-pointer ${
                 isDarkMode ? 'text-slate-300 hover:text-cyan-300' : 'text-slate-600 hover:text-indigo-600'
               }`}
             >
               <i className="fa-solid fa-gamepad mr-1 text-[11px]"></i> Simulator
-            </a>
-            <a
-              href="#matrix-framework"
-              className={`px-3 py-1.5 rounded-xl transition ${
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollToSection('matrix-framework')}
+              className={`px-3 py-1.5 rounded-xl transition cursor-pointer ${
                 isDarkMode ? 'text-slate-300 hover:text-cyan-300' : 'text-slate-600 hover:text-indigo-600'
               }`}
             >
               <i className="fa-solid fa-layer-group mr-1 text-[11px]"></i> Standar ILUO
-            </a>
-            <a
-              href="#features"
-              className={`px-3 py-1.5 rounded-xl transition ${
+            </button>
+            <button
+              type="button"
+              onClick={() => scrollToSection('features')}
+              className={`px-3 py-1.5 rounded-xl transition cursor-pointer ${
                 isDarkMode ? 'text-slate-300 hover:text-cyan-300' : 'text-slate-600 hover:text-indigo-600'
               }`}
             >
               <i className="fa-solid fa-cubes mr-1 text-[11px]"></i> Ekosistem
-            </a>
+            </button>
           </nav>
 
           {/* Action Buttons & Theme Switcher */}

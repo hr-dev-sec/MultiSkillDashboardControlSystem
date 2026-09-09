@@ -166,6 +166,28 @@ export default function App() {
     link.href = 'https://upload.wikimedia.org/wikipedia/commons/0/01/Ajinomoto_Group_Global_Brand_logo.png';
   }, []);
 
+  // Global prevention & clean-up of #... fragments in the browser URL
+  useEffect(() => {
+    const handleUrlHash = () => {
+      if (typeof window !== 'undefined' && window.location.hash) {
+        const hashId = window.location.hash.replace(/^#/, '');
+        if (hashId) {
+          const el = document.getElementById(hashId);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }
+        }
+        try {
+          window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        } catch (_) {}
+      }
+    };
+
+    handleUrlHash();
+    window.addEventListener('hashchange', handleUrlHash);
+    return () => window.removeEventListener('hashchange', handleUrlHash);
+  }, []);
+
   // Dark Mode
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
     return localStorage.getItem('msm_dark_mode') === 'true';
