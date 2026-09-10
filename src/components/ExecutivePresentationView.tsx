@@ -227,11 +227,11 @@ Laporan resmi terverifikasi sistem: ${new Date().toLocaleString('id-ID')}`;
   return (
     <div
       ref={containerRef}
-      className={`relative flex flex-col transition-colors duration-300 w-full ${
+      className={`relative flex flex-col transition-colors duration-300 w-full space-y-4 sm:space-y-6 ${
         isDarkMode
           ? 'text-slate-100'
           : 'text-slate-900'
-      } ${isFullscreen ? 'fixed inset-0 z-50 p-4 sm:p-8 lg:p-10 overflow-y-auto bg-[#081220]' : 'space-y-4 sm:space-y-6'}`}
+      } ${isFullscreen ? 'fixed inset-0 z-50 p-4 sm:p-8 lg:p-10 overflow-y-auto bg-[#081220]' : ''}`}
     >
       {/* TOP EXECUTIVE CARD: BRANDING, STATS & UNIFIED TOOLBAR */}
       <div className="bg-white/95 dark:bg-[#0A192F]/95 backdrop-blur-md rounded-2xl p-4 sm:p-5 border border-slate-200/90 dark:border-white/10 shadow-xs space-y-4 shrink-0">
@@ -395,10 +395,10 @@ Laporan resmi terverifikasi sistem: ${new Date().toLocaleString('id-ID')}`;
 
       {/* SLIDE NAVIGATION BAR (When in Slides Mode) */}
       {presentationMode === 'slides' && (
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between flex-wrap gap-3 bg-white/70 dark:bg-[#0A192F]/70 backdrop-blur-sm p-2 rounded-2xl border border-slate-200/80 dark:border-white/10 shadow-2xs">
+        <div className="space-y-2.5 my-1.5 sm:my-2">
+          <div className="flex items-center justify-between flex-wrap gap-3 bg-white/80 dark:bg-[#0A192F]/80 backdrop-blur-md px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl border border-slate-200/80 dark:border-white/10 shadow-xs">
             {/* Slide tabs with smooth horizontal scroll */}
-            <div className="flex items-center gap-1.5 overflow-x-auto py-0.5 max-w-full scrollbar-none flex-1 min-w-0">
+            <div className="flex items-center gap-2 overflow-x-auto py-1 pr-3 max-w-full scrollbar-none flex-1 min-w-0">
               {slideTitles.map((slide) => {
                 const isActive = currentSlide === slide.num;
                 return (
@@ -409,7 +409,7 @@ Laporan resmi terverifikasi sistem: ${new Date().toLocaleString('id-ID')}`;
                       setCurrentSlide(slide.num);
                       setAutoPlayProgress(0);
                     }}
-                    className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer border shadow-2xs ${
+                    className={`px-3 py-1.5 sm:py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shrink-0 cursor-pointer border shadow-2xs ${
                       isActive
                         ? 'bg-[#0E2340] text-amber-300 border-amber-400/50 shadow-xs'
                         : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600'
@@ -428,7 +428,7 @@ Laporan resmi terverifikasi sistem: ${new Date().toLocaleString('id-ID')}`;
             </div>
 
             {/* Slide Arrows & Progress Counter */}
-            <div className="flex items-center gap-2 shrink-0 pl-2 border-l border-slate-200 dark:border-white/10">
+            <div className="flex items-center gap-2.5 shrink-0 pl-3.5 sm:pl-4 ml-1 border-l border-slate-200/90 dark:border-white/15">
               <span className="text-xs font-mono font-bold text-slate-600 dark:text-slate-400 whitespace-nowrap">
                 <strong>{currentSlide}</strong> / {totalSlides}
               </span>
@@ -474,7 +474,7 @@ Laporan resmi terverifikasi sistem: ${new Date().toLocaleString('id-ID')}`;
       {/* =========================================================================
           SLIDE CONTENT CONTAINER (Animated transitions in Slide Mode, or Stacked in Briefing Mode)
          ========================================================================= */}
-      <div id="executive-presentation-slide-container" className="flex-1 flex flex-col space-y-8">
+      <div id="executive-presentation-slide-container" className="flex-1 flex flex-col space-y-8 pt-1 sm:pt-2">
         {/* SLIDE 1: FACTORY SCORECARD & MACRO SUMMARY */}
         {(presentationMode === 'briefing' || currentSlide === 1) && (
           <motion.div
