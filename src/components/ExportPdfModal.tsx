@@ -55,15 +55,17 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
   const [scope, setScope] = useState<'filtered' | 'all'>('filtered');
   const [reportType, setReportType] = useState<'comprehensive' | 'executive' | 'employee_detail'>('comprehensive');
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
+  const [includeCoverPage, setIncludeCoverPage] = useState<boolean>(true);
+  const [includeEmployeeDetails, setIncludeEmployeeDetails] = useState<boolean>(true);
 
   // Custom approver signatures
   const [signerName, setSignerName] = useState(currentUser.name || 'Mahmud Nurdiansyah');
   const [signerRole, setSignerRole] = useState(currentUser.role || 'HR Development Specialist');
 
-  // Tab state: 'page1' | 'page2' | 'page3' | 'roster' | 'action_plan' | 'email' | 'magic_link' | 'gas' | 'schedule' | 'smtp' | 'history'
+  // Tab state: 'cover' | 'page1' | 'page2' | 'page3' | 'roster' | 'action_plan' | 'email' | 'magic_link' | 'gas' | 'schedule' | 'smtp' | 'history'
   const [activePreviewPage, setActivePreviewPage] = useState<
-    'page1' | 'page2' | 'page3' | 'roster' | 'action_plan' | 'email' | 'magic_link' | 'gas' | 'schedule' | 'smtp' | 'history'
-  >('page1');
+    'cover' | 'page1' | 'page2' | 'page3' | 'roster' | 'action_plan' | 'email' | 'magic_link' | 'gas' | 'schedule' | 'smtp' | 'history'
+  >('cover');
   const [rosterSearch, setRosterSearch] = useState('');
 
   // Email state
@@ -164,6 +166,11 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
   const divStr = filters.divisi.join(', ') || '';
   const deptStr = filters.department.join(', ') || '';
   const jabStr = filters.jabatan.join(', ') || '';
+  const tanggalStr = new Date().toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric'
+  });
 
   const emailDraftPayload = buildMultiSkillEmailDraft({
     targetData,
@@ -237,6 +244,8 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
           currentUser,
           reportType,
           orientation,
+          includeCoverPage,
+          includeEmployeeDetails,
           approvers: {
             preparedBy: { name: signerName, title: signerRole }
           }
@@ -356,6 +365,8 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
         currentUser,
         reportType,
         orientation,
+        includeCoverPage,
+        includeEmployeeDetails,
         approvers: {
           preparedBy: { name: signerName, title: signerRole }
         }
@@ -424,6 +435,8 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
         currentUser,
         reportType,
         orientation,
+        includeCoverPage,
+        includeEmployeeDetails,
         approvers: {
           preparedBy: { name: signerName, title: signerRole }
         }
@@ -730,6 +743,79 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                   </button>
                 </div>
               </div>
+
+              {/* Opsi Tambahan: Cover Depan & Detail Karyawan */}
+              <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                <span className="text-[11px] font-semibold text-slate-500 block">Kelengkapan Laporan:</span>
+
+                {/* Toggle 1: Cover Depan */}
+                <div className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
+                  <div className="pr-2">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                      <i className="fa-solid fa-file-invoice text-amber-500 text-xs"></i>
+                      <span>Sertakan Cover Depan Resmi (Executive Cover Page)</span>
+                    </span>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      Menambahkan halaman sampul depan eksklusif berlogo resmi Ajinomoto, judul dokumen, matriks KPI, dan pengesahan
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextVal = !includeCoverPage;
+                      setIncludeCoverPage(nextVal);
+                      if (!nextVal && activePreviewPage === 'cover') {
+                        setActivePreviewPage('page1');
+                      } else if (nextVal) {
+                        setActivePreviewPage('cover');
+                      }
+                    }}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      includeCoverPage ? 'bg-[#0E2340] dark:bg-amber-500' : 'bg-slate-300 dark:bg-slate-600'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                        includeCoverPage ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {/* Toggle 2: Detail Karyawan */}
+                <div className="flex items-center justify-between p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60">
+                  <div className="pr-2">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                      <i className="fa-solid fa-users text-indigo-500 text-xs"></i>
+                      <span>Sertakan Detail Karyawan (Rincian Seluruh Baris)</span>
+                    </span>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                      {includeEmployeeDetails
+                        ? `Aktif: Mencetak tabel matriks per individu (${targetData.length} baris karyawan lengkap)`
+                        : 'Nonaktif: Hanya mencetak ringkasan divisi, departemen, jabatan, dan action plan'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextVal = !includeEmployeeDetails;
+                      setIncludeEmployeeDetails(nextVal);
+                      if (!nextVal && activePreviewPage === 'roster') {
+                        setActivePreviewPage('page1');
+                      }
+                    }}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      includeEmployeeDetails ? 'bg-[#0E2340] dark:bg-amber-500' : 'bg-slate-300 dark:bg-slate-600'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                        includeEmployeeDetails ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Quick KPI Stats Overview */}
@@ -818,6 +904,20 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
               <div className="flex items-center gap-1.5 overflow-x-auto py-1">
                 {/* PDF Page Tabs */}
                 <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl gap-0.5 overflow-x-auto max-w-full">
+                  {includeCoverPage && (
+                    <button
+                      type="button"
+                      onClick={() => setActivePreviewPage('cover')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
+                        activePreviewPage === 'cover'
+                          ? 'bg-white dark:bg-slate-900 text-[#0E2340] dark:text-amber-300 shadow-xs'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                      }`}
+                    >
+                      <i className="fa-solid fa-file-invoice text-[11px] text-amber-500"></i>
+                      <span>Cover Depan</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setActivePreviewPage('page1')}
@@ -846,11 +946,17 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                     className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
                       activePreviewPage === 'roster'
                         ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs'
-                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        : includeEmployeeDetails
+                        ? 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                        : 'text-slate-400 dark:text-slate-500 line-through opacity-60'
                     }`}
+                    title={includeEmployeeDetails ? 'Lihat Matriks Detail Karyawan' : 'Matriks Detail Karyawan Dinonaktifkan'}
                   >
                     <i className="fa-solid fa-users text-[10px]"></i>
                     <span>Detail Karyawan ({targetData.length})</span>
+                    {!includeEmployeeDetails && (
+                      <span className="text-[9px] px-1 rounded bg-slate-200 dark:bg-slate-700 text-slate-500">Off</span>
+                    )}
                   </button>
                   <button
                     type="button"
@@ -1425,6 +1531,139 @@ export const ExportPdfModal: React.FC<ExportPdfModalProps> = ({
                         </div>
                       ))
                     )}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB: COVER DEPAN PREVIEW */}
+              {activePreviewPage === 'cover' && (
+                <div
+                  className={`${
+                    orientation === 'landscape' ? 'w-full max-w-[640px]' : 'w-[340px] sm:w-[480px]'
+                  } mx-auto min-h-[580px] bg-white text-slate-800 rounded-2xl shadow-xl border border-slate-300 flex flex-col justify-between overflow-hidden transition-all duration-300 animate-fadeIn`}
+                >
+                  {/* Top Navy Banner with Gold & Red Stripes */}
+                  <div className="relative shrink-0">
+                    <div className="p-4 text-white flex items-center justify-between" style={{ backgroundColor: '#0E2340' }}>
+                      <div className="flex items-center gap-3">
+                        <div className="w-14 h-11 rounded-lg bg-white p-1 flex items-center justify-center shrink-0 shadow-sm">
+                          <img
+                            src="https://upload.wikimedia.org/wikipedia/commons/0/01/Ajinomoto_Group_Global_Brand_logo.png"
+                            alt="Logo Ajinomoto"
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        </div>
+                        <div>
+                          <p className="text-[8px] tracking-widest text-slate-300 uppercase font-semibold">Eat Well, Live Well.</p>
+                          <p className="text-sm font-extrabold text-white tracking-wide">PT AJINOMOTO INDONESIA</p>
+                          <p className="text-[8.5px] text-slate-200">PABRIK MOJOKERTO — HUMAN RESOURCES DEVELOPMENT</p>
+                        </div>
+                      </div>
+                      <div className="text-right hidden sm:block">
+                        <span className="text-[8px] px-2.5 py-1 rounded bg-[#B8874B] text-white font-bold tracking-wider uppercase">
+                          OFFICIAL AUDIT REPORT
+                        </span>
+                      </div>
+                    </div>
+                    <div className="h-1 w-full" style={{ backgroundColor: '#B8874B' }}></div>
+                    <div className="h-0.5 w-full" style={{ backgroundColor: '#DA291C' }}></div>
+                  </div>
+
+                  {/* Cover Body */}
+                  <div className="p-5 flex-1 flex flex-col justify-between space-y-3.5">
+                    <div className="space-y-2.5">
+                      <div className="inline-block px-2.5 py-0.5 rounded border border-slate-200 bg-slate-100 text-[8px] font-bold text-[#0E2340] uppercase tracking-wider">
+                        SISTEM MONITORING &amp; KONTROL MULTI-SKILL PABRIK
+                      </div>
+
+                      <div>
+                        <h1 className="text-lg sm:text-xl font-extrabold text-[#0E2340] leading-tight">
+                          LAPORAN KOMPREHENSIF
+                        </h1>
+                        <h2 className="text-sm sm:text-base font-extrabold text-[#DA291C] leading-tight">
+                          MONITORING &amp; EVALUASI MULTI-SKILL
+                        </h2>
+                        <p className="text-[10px] font-semibold text-slate-700 mt-1">
+                          {reportType === 'employee_detail'
+                            ? 'Pemetaan Lengkap Matriks Evaluasi & Kesenjangan Kompetensi Per Individu Karyawan'
+                            : reportType === 'executive'
+                            ? 'Ringkasan Eksekutif Ketercapaian Standar Keahlian Organisasi & Analisis Jabatan'
+                            : 'Pemetaan Kompetensi Teknis, Analisis Kesenjangan (Gap Analysis) & Kebutuhan Pelatihan Kerja'}
+                        </p>
+                        <p className="text-[8px] italic text-slate-500 mt-0.5">
+                          Dokumen resmi pengendalian mutu sumber daya manusia dan kesiapan operasional seluruh lini kerja pabrik.
+                        </p>
+                        <div className="flex items-center gap-1.5 mt-2">
+                          <span className="h-0.5 w-10 bg-[#DA291C] rounded"></span>
+                          <span className="h-0.5 w-4 bg-[#B8874B] rounded"></span>
+                        </div>
+                      </div>
+
+                      {/* 4 Highlights KPI Box */}
+                      <div className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/90 grid grid-cols-4 gap-1 text-center">
+                        <div className="p-1">
+                          <p className="text-[7.5px] uppercase font-bold text-slate-500">Manpower</p>
+                          <p className="text-sm font-extrabold text-[#0E2340]">{totalManpower}</p>
+                          <p className="text-[6.5px] text-slate-400">Total Karyawan</p>
+                        </div>
+                        <div className="p-1 border-l border-slate-200">
+                          <p className="text-[7.5px] uppercase font-bold text-emerald-600">Standar (MS)</p>
+                          <p className="text-sm font-extrabold text-emerald-600">{totalMS}</p>
+                          <p className="text-[6.5px] text-emerald-700">{pctFormatted}</p>
+                        </div>
+                        <div className="p-1 border-l border-slate-200">
+                          <p className="text-[7.5px] uppercase font-bold text-rose-600">Belum Standar</p>
+                          <p className="text-sm font-extrabold text-rose-600">{totalUS}</p>
+                          <p className="text-[6.5px] text-rose-700">Perlu Training</p>
+                        </div>
+                        <div className="p-1 border-l border-slate-200">
+                          <p className="text-[7.5px] uppercase font-bold text-amber-600">Target Mutu</p>
+                          <p className="text-sm font-extrabold text-[#B8874B]">≥80.0%</p>
+                          <p className="text-[6.5px] text-slate-500">{percentMS >= 0.8 ? 'Tercapai' : 'Defisit Gap'}</p>
+                        </div>
+                      </div>
+
+                      {/* Scope & Verification Matrix */}
+                      <div className="p-3 rounded-xl border border-slate-200 bg-white grid grid-cols-2 gap-3 text-[8px]">
+                        <div className="space-y-1">
+                          <p className="font-bold text-[#0E2340] text-[8.5px] border-b border-slate-100 pb-0.5">
+                            RUANG LINGKUP &amp; PARAMETER
+                          </p>
+                          <p className="text-slate-600"><strong>Periode:</strong> {blnStr} {thnStr}</p>
+                          <p className="text-slate-600"><strong>Divisi:</strong> {byDivisi.length} Divisi Terliput</p>
+                          <p className="text-slate-600"><strong>Departemen:</strong> {byDepartment.length} Departemen</p>
+                          <p className="text-slate-600"><strong>Standar:</strong> 92 Kompetensi Teknis</p>
+                          <p className="text-slate-600">
+                            <strong>Detail Karyawan:</strong>{' '}
+                            {includeEmployeeDetails ? (
+                              <span className="text-indigo-600 font-bold">Disertakan ({targetData.length} Karyawan)</span>
+                            ) : (
+                              <span className="text-slate-500">Dilewati (Format Ringkasan)</span>
+                            )}
+                          </p>
+                        </div>
+                        <div className="space-y-1 border-l border-slate-100 pl-3">
+                          <p className="font-bold text-[#0E2340] text-[8.5px] border-b border-slate-100 pb-0.5">
+                            VERIFIKASI &amp; PENGESAHAN
+                          </p>
+                          <p className="text-slate-600"><strong>Disusun:</strong> {signerName}</p>
+                          <p className="text-slate-600"><strong>Jabatan:</strong> {signerRole}</p>
+                          <p className="text-slate-600"><strong>Tanggal:</strong> {tanggalStr}</p>
+                          <p className="text-emerald-600 font-bold">✓ E-Verified &amp; Approved</p>
+                          <p className="text-rose-600 font-bold text-[7px]">CONFIDENTIAL (INTERNAL ONLY)</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Bottom Cover Footer */}
+                    <div className="pt-2 border-t border-slate-200 text-center">
+                      <p className="text-[7.5px] text-[#0E2340] font-semibold">
+                        PT AJINOMOTO INDONESIA — MOJOKERTO FACTORY
+                      </p>
+                      <p className="text-[6.5px] text-slate-400">
+                        Jl. Raya Mlirip KM 44, Jetis, Mojokerto 61352 | Dokumen Resmi Evaluasi &amp; Pengembangan SDM
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}

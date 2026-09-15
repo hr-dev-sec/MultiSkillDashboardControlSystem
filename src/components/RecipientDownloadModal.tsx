@@ -218,6 +218,8 @@ export const RecipientDownloadModal: React.FC<RecipientDownloadModalProps> = ({
         },
         reportType: (urlParams.report as any) || 'comprehensive',
         orientation: 'portrait',
+        includeCoverPage: urlParams.cover !== '0' && urlParams.cover !== 'false',
+        includeEmployeeDetails: urlParams.details !== '0' && urlParams.details !== 'false',
         approvers: {
           preparedBy: {
             name: currentUser.name || 'Mahmud Nurdiansyah',

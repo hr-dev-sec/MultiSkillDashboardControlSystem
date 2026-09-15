@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { Employee, AppFiltersState, UserSession } from '../types';
 import { BULAN_LABELS } from '../data/initialData';
 import { computeDashboardStats } from './storage';
+import { AJINOMOTO_LOGO_BASE64 } from './ajinomotoLogoData';
 
 export interface PdfExportOptions {
   scope: 'filtered' | 'all';
@@ -12,6 +13,8 @@ export interface PdfExportOptions {
   currentUser: UserSession;
   reportType?: 'comprehensive' | 'executive' | 'employee_detail';
   orientation?: 'portrait' | 'landscape';
+  includeEmployeeDetails?: boolean;
+  includeCoverPage?: boolean;
   approvers?: {
     preparedBy?: { name: string; title: string };
     reviewedBy?: { name: string; title: string };
@@ -62,6 +65,8 @@ export function generateMultiSkillReportPdf({
   currentUser,
   reportType = 'comprehensive',
   orientation = 'portrait',
+  includeEmployeeDetails = true,
+  includeCoverPage = true,
   approvers
 }: PdfExportOptions): PdfExportResult {
   const targetData = scope === 'filtered' ? filteredEmployees : allEmployees;
@@ -166,6 +171,293 @@ export function generateMultiSkillReportPdf({
   let y = 0;
 
   // =========================================================================
+  // 0. LUXURY EXECUTIVE COVER PAGE (HALAMAN DEPAN LAPORAN)
+  // =========================================================================
+  const drawCoverPage = () => {
+    // 1. Clean background canvas
+    doc.setFillColor(255, 255, 255);
+    doc.rect(0, 0, pageWidth, pageHeight, 'F');
+
+    // 2. Top Executive Corporate Banner (Deep Navy + Gold + Red accents)
+    const topBannerHeight = isLandscape ? 38 : 46;
+    doc.setFillColor(...COLOR_NAVY);
+    doc.rect(0, 0, pageWidth, topBannerHeight, 'F');
+
+    doc.setFillColor(...COLOR_GOLD);
+    doc.rect(0, topBannerHeight, pageWidth, 1.8, 'F');
+
+    doc.setFillColor(...COLOR_RED);
+    doc.rect(0, topBannerHeight + 1.8, pageWidth, 1.2, 'F');
+
+    // 3. Official Ajinomoto Logo badge inside top banner
+    const coverLogoW = isLandscape ? 34 : 38;
+    const coverLogoH = isLandscape ? 22 : 24;
+    const coverLogoX = marginX;
+    const coverLogoY = isLandscape ? 8 : 11;
+
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(coverLogoX, coverLogoY, coverLogoW, coverLogoH, 1.5, 1.5, 'F');
+    try {
+      doc.addImage(
+        AJINOMOTO_LOGO_BASE64,
+        'PNG',
+        coverLogoX + 1.5,
+        coverLogoY + 1.2,
+        coverLogoW - 3,
+        coverLogoH - 2.4
+      );
+    } catch (_) {}
+
+    // Corporate Title beside Logo
+    const corpTextX = coverLogoX + coverLogoW + 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(isLandscape ? 8 : 9);
+    doc.setTextColor(203, 213, 225);
+    doc.text('Eat Well, Live Well.', corpTextX, isLandscape ? 15 : 18);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(isLandscape ? 14 : 16);
+    doc.setTextColor(255, 255, 255);
+    doc.text('PT AJINOMOTO INDONESIA', corpTextX, isLandscape ? 22 : 26);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(isLandscape ? 8 : 9);
+    doc.setTextColor(226, 232, 240);
+    doc.text('PABRIK MOJOKERTO — HUMAN RESOURCES DEVELOPMENT', corpTextX, isLandscape ? 28 : 33);
+
+    // Right Badge in Top Banner
+    const badgeW = isLandscape ? 45 : 48;
+    const badgeH = 7.5;
+    const badgeX = pageWidth - marginX - badgeW;
+    const badgeY = isLandscape ? 15 : 19;
+    doc.setFillColor(...COLOR_GOLD);
+    doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 1.5, 1.5, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(255, 255, 255);
+    doc.text('OFFICIAL HR AUDIT REPORT', badgeX + badgeW / 2, badgeY + 5, { align: 'center' });
+
+    // 4. Document Classification & Category Tag
+    let cy = topBannerHeight + (isLandscape ? 10 : 15);
+
+    doc.setFillColor(241, 245, 249);
+    doc.setDrawColor(...COLOR_BORDER);
+    doc.setLineWidth(0.3);
+    const tagW = isLandscape ? 110 : 125;
+    doc.roundedRect(marginX, cy, tagW, 7, 1.2, 1.2, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7);
+    doc.setTextColor(...COLOR_NAVY);
+    doc.text('SISTEM MONITORING & KONTROL MULTI-SKILL OPERASIONAL PABRIK', marginX + 3.5, cy + 4.8);
+
+    cy += isLandscape ? 12 : 16;
+
+    // 5. Main Title & Subtitle
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(isLandscape ? 18 : 22);
+    doc.setTextColor(...COLOR_NAVY);
+    doc.text('LAPORAN KOMPREHENSIF', marginX, cy);
+    cy += isLandscape ? 7.5 : 9.5;
+
+    doc.setTextColor(...COLOR_RED);
+    doc.text('MONITORING & EVALUASI MULTI-SKILL', marginX, cy);
+    cy += isLandscape ? 7 : 8.5;
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(isLandscape ? 10 : 11);
+    doc.setTextColor(...COLOR_TEXT_DARK);
+    doc.text(
+      reportType === 'employee_detail'
+        ? 'Pemetaan Lengkap Matriks Evaluasi & Kesenjangan Kompetensi Per Individu Karyawan'
+        : reportType === 'executive'
+        ? 'Ringkasan Eksekutif Ketercapaian Standar Keahlian Organisasi & Analisis Jabatan'
+        : 'Pemetaan Kompetensi Teknis, Analisis Kesenjangan (Gap Analysis) & Kebutuhan Pelatihan Kerja',
+      marginX,
+      cy
+    );
+    cy += isLandscape ? 5.5 : 6.5;
+
+    doc.setFont('helvetica', 'italic');
+    doc.setFontSize(isLandscape ? 7.5 : 8.5);
+    doc.setTextColor(...COLOR_TEXT_MUTED);
+    doc.text(
+      'Dokumen resmi pengendalian mutu sumber daya manusia dan kesiapan operasional seluruh lini kerja pabrik.',
+      marginX,
+      cy
+    );
+    cy += isLandscape ? 8 : 12;
+
+    // Red & Gold Decorative Divider Bar
+    doc.setFillColor(...COLOR_RED);
+    doc.rect(marginX, cy, 35, 1.8, 'F');
+    doc.setFillColor(...COLOR_GOLD);
+    doc.rect(marginX + 37, cy, 15, 1.8, 'F');
+    cy += isLandscape ? 7 : 10;
+
+    // 6. Executive KPI Summary Box on Cover
+    const kpiBoxH = isLandscape ? 26 : 30;
+    doc.setFillColor(...COLOR_BG_ALT);
+    doc.setDrawColor(...COLOR_BORDER);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(marginX, cy, contentWidth, kpiBoxH, 2, 2, 'FD');
+
+    // Inside KPI Box: 4 items
+    const kpiItemW = contentWidth / 4;
+    const kpiItems = [
+      { label: 'TOTAL MANPOWER', val: `${totalManpower}`, sub: 'Karyawan Aktif Terdata', color: COLOR_NAVY },
+      { label: 'MEMENUHI STANDAR (MS)', val: `${totalMS}`, sub: `${pctFormatted} dari Total`, color: COLOR_GREEN },
+      { label: 'BELUM STANDAR (US)', val: `${totalUS}`, sub: `${totalManpower > 0 ? ((totalUS / totalManpower) * 100).toFixed(1) : 0}% Perlu Pembinaan`, color: COLOR_DANGER_RED },
+      { label: 'TARGET KELULUSAN', val: '80.0%', sub: percentMS >= 0.8 ? 'Target Tercapai' : 'Di Bawah Standar Target', color: COLOR_GOLD }
+    ];
+
+    kpiItems.forEach((item, idx) => {
+      const ix = marginX + idx * kpiItemW;
+      if (idx > 0) {
+        doc.setDrawColor(...COLOR_BORDER);
+        doc.setLineWidth(0.2);
+        doc.line(ix, cy + 3, ix, cy + kpiBoxH - 3);
+      }
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...COLOR_TEXT_MUTED);
+      doc.text(item.label, ix + kpiItemW / 2, cy + 7, { align: 'center' });
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(isLandscape ? 14 : 16);
+      doc.setTextColor(...item.color);
+      doc.text(item.val, ix + kpiItemW / 2, cy + (isLandscape ? 17 : 18.5), { align: 'center' });
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...COLOR_TEXT_MUTED);
+      doc.text(item.sub, ix + kpiItemW / 2, cy + (isLandscape ? 22 : 24.5), { align: 'center' });
+    });
+
+    cy += kpiBoxH + (isLandscape ? 7 : 11);
+
+    // 7. Scope & Metadata Card (2 Column Layout)
+    const scopeCardH = isLandscape ? 38 : 46;
+    doc.setFillColor(255, 255, 255);
+    doc.setDrawColor(...COLOR_BORDER);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(marginX, cy, contentWidth, scopeCardH, 2, 2, 'FD');
+
+    // Left Column: Parameter & Scope
+    const colW = (contentWidth - 10) / 2;
+    const col1X = marginX + 4;
+    const col2X = marginX + colW + 6;
+
+    // Header Left Column
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...COLOR_NAVY);
+    doc.text('PARAMETER & RUANG LINGKUP EVALUASI', col1X, cy + 6.5);
+    doc.setDrawColor(...COLOR_BORDER);
+    doc.setLineWidth(0.2);
+    doc.line(col1X, cy + 8.5, col1X + colW - 4, cy + 8.5);
+
+    const blnFilterStr = filters.bulan && filters.bulan.length > 0
+      ? filters.bulan.map((b) => BULAN_LABELS[Number(b) - 1] || b).join(', ')
+      : 'Seluruh Periode (Jan - Des)';
+    const thnFilterStr = filters.tahun && filters.tahun.length > 0
+      ? filters.tahun.join(', ')
+      : 'Semua Tahun Terdata';
+
+    const paramRows = [
+      ['Periode Evaluasi', `: ${blnFilterStr} ${thnFilterStr}`],
+      ['Cakupan Divisi', `: ${sortedDivisi.length} Divisi (${filters.divisi.length ? filters.divisi.join(', ') : 'Seluruh Divisi Pabrik'})`],
+      ['Cakupan Departemen', `: ${sortedDept.length} Departemen Terverifikasi`],
+      ['Standar Kompetensi', ': 92 Standar Kompetensi Teknis Operasional'],
+      ['Lampiran Detail Karyawan', `: ${includeEmployeeDetails ? 'Disertakan Lengkap (' + targetData.length + ' Karyawan)' : 'Dilewati (Format Ringkasan & Rekapitulasi)'}`]
+    ];
+
+    let rowY = cy + 13.5;
+    paramRows.forEach(([lbl, val]) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...COLOR_TEXT_MUTED);
+      doc.text(lbl, col1X, rowY);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...COLOR_TEXT_DARK);
+      const truncatedVal = doc.splitTextToSize(val, colW - 38);
+      doc.text(truncatedVal[0] || val, col1X + 35, rowY);
+      rowY += isLandscape ? 5 : 5.8;
+    });
+
+    // Vertical Divider between columns
+    doc.setDrawColor(...COLOR_BORDER);
+    doc.setLineWidth(0.2);
+    doc.line(col2X - 3, cy + 4, col2X - 3, cy + scopeCardH - 4);
+
+    // Right Column: Official Authorization & Verification
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(...COLOR_NAVY);
+    doc.text('PENGESAHAN & KLASIFIKASI DOKUMEN', col2X, cy + 6.5);
+    doc.line(col2X, cy + 8.5, col2X + colW - 4, cy + 8.5);
+
+    const authRows = [
+      ['Disusun / Diajukan Oleh', `: ${signerName}`],
+      ['Jabatan / Role', `: ${signerRole}`],
+      ['Tanggal Terbit Dokumen', `: ${tanggalStr}, ${jamStr}`],
+      ['Status Validasi', ': TERVERIFIKASI & TERCATAT RESMI (DIGITALLY SIGNED)'],
+      ['Klasifikasi Dokumen', ': STRICTLY CONFIDENTIAL — INTERNAL PT AJINOMOTO INDONESIA']
+    ];
+
+    let authY = cy + 13.5;
+    authRows.forEach(([lbl, val]) => {
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(...COLOR_TEXT_MUTED);
+      doc.text(lbl, col2X, authY);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      if (lbl === 'Status Validasi') {
+        doc.setTextColor(...COLOR_GREEN);
+      } else if (lbl === 'Klasifikasi Dokumen') {
+        doc.setTextColor(...COLOR_RED);
+      } else {
+        doc.setTextColor(...COLOR_TEXT_DARK);
+      }
+      const truncatedVal = doc.splitTextToSize(val, colW - 40);
+      doc.text(truncatedVal[0] || val, col2X + 36, authY);
+      authY += isLandscape ? 5 : 5.8;
+    });
+
+    // 8. Bottom Corporate Band on Cover
+    const bottomBarH = isLandscape ? 12 : 14;
+    const bottomBarY = pageHeight - bottomBarH;
+
+    doc.setFillColor(...COLOR_GOLD);
+    doc.rect(0, bottomBarY - 1.2, pageWidth, 1.2, 'F');
+
+    doc.setFillColor(...COLOR_NAVY);
+    doc.rect(0, bottomBarY, pageWidth, bottomBarH, 'F');
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.8);
+    doc.setTextColor(203, 213, 225);
+    doc.text(
+      'PT AJINOMOTO INDONESIA — MOJOKERTO FACTORY | JL. RAYA MLIRIP KM 44, JETIS, MOJOKERTO 61352',
+      pageWidth / 2,
+      bottomBarY + (isLandscape ? 5.5 : 6.5),
+      { align: 'center' }
+    );
+    doc.setFontSize(5.8);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      'Hak Cipta © PT Ajinomoto Indonesia. Dokumen resmi operasional untuk evaluasi dan pengembangan kompetensi karyawan.',
+      pageWidth / 2,
+      bottomBarY + (isLandscape ? 9 : 10.5),
+      { align: 'center' }
+    );
+  };
+
+  // =========================================================================
   // 1. CORPORATE HEADER (PAGE 1)
   // =========================================================================
   const drawHeader = () => {
@@ -178,32 +470,29 @@ export function generateMultiSkillReportPdf({
     doc.setFillColor(...COLOR_GOLD);
     doc.rect(0, headerHeight, pageWidth, 1.2, 'F');
 
-    // Logo on Left side: Ajinomoto Red Monogram & Badge
+    // Logo on Left side: Ajinomoto Official Logo inside crisp white rounded badge
+    const logoBadgeW = isLandscape ? 22 : 24;
+    const logoBadgeH = isLandscape ? 15 : 16;
     const logoX = marginX;
-    const logoY = isLandscape ? 2.5 : 3.5;
+    const logoY = isLandscape ? 2.5 : 3;
 
-    // Small "Eat Well, Live Well." text above
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(5.5);
-    doc.setTextColor(255, 255, 255);
-    doc.text('Eat Well, Live Well.', logoX + 0.5, logoY + 2.5);
+    // Clean white rounded badge for high-contrast crisp display
+    doc.setFillColor(255, 255, 255);
+    doc.roundedRect(logoX, logoY, logoBadgeW, logoBadgeH, 1.2, 1.2, 'F');
 
-    // Red "Aj" Emblem
-    doc.setFillColor(...COLOR_RED);
-    doc.roundedRect(logoX + 2, logoY + 3.2, 10.5, 6.8, 1.2, 1.2, 'F');
-    doc.setTextColor(255, 255, 255);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
-    doc.text('Aj', logoX + 7.2, logoY + 8, { align: 'center' });
-
-    // AJINOMOTO Text below
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(4.8);
-    doc.setTextColor(255, 255, 255);
-    doc.text('AJINOMOTO', logoX + 7.2, logoY + 12.8, { align: 'center' });
+    try {
+      doc.addImage(
+        AJINOMOTO_LOGO_BASE64,
+        'PNG',
+        logoX + 1.2,
+        logoY + 1,
+        logoBadgeW - 2.4,
+        logoBadgeH - 2
+      );
+    } catch (_) {}
 
     // Title Text next to logo
-    const titleX = logoX + 21;
+    const titleX = logoX + logoBadgeW + 3.5;
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(isLandscape ? 12 : 13);
     doc.setTextColor(255, 255, 255);
@@ -909,7 +1198,15 @@ export function generateMultiSkillReportPdf({
   // =========================================================================
   // EXECUTE GENERATION SEQUENCE ACCORDING TO REPORT TYPE
   // =========================================================================
-  // 1. First Page Header & Primary KPIs
+  const hasCover = includeCoverPage !== false;
+
+  // 1. Executive Cover Page (if selected)
+  if (hasCover) {
+    drawCoverPage();
+    doc.addPage();
+  }
+
+  // 2. First Report Body Page Header & Primary KPIs
   drawHeader();
   drawKpiCards();
   drawAnalyticalHighlightsAndFilter();
@@ -922,8 +1219,10 @@ export function generateMultiSkillReportPdf({
     drawJobPositionTable();
     drawGradeTable();
 
-    // Critical: Complete Employee Roster
-    drawEmployeeRosterTable();
+    // Critical: Complete Employee Roster (controlled by includeEmployeeDetails)
+    if (includeEmployeeDetails !== false) {
+      drawEmployeeRosterTable();
+    }
 
     // Action Plan: Prioritas Pembinaan Karyawan Belum Standar
     drawActionPlanUnderStandardTable();
@@ -933,8 +1232,10 @@ export function generateMultiSkillReportPdf({
 
   } else if (reportType === 'employee_detail') {
     // DETAILED EMPLOYEE MATRIX REPORT:
-    // Focus purely on complete employee evaluations + Action Plan
-    drawEmployeeRosterTable();
+    // Focus on employee evaluations + Action Plan
+    if (includeEmployeeDetails !== false) {
+      drawEmployeeRosterTable();
+    }
     drawActionPlanUnderStandardTable();
     drawDivisiTable();
     drawSignaturesBlock();
@@ -946,6 +1247,9 @@ export function generateMultiSkillReportPdf({
     drawDepartmentTable();
     drawJobPositionTable();
     drawGradeTable();
+    if (includeEmployeeDetails === true) {
+      drawEmployeeRosterTable();
+    }
     drawActionPlanUnderStandardTable();
     drawSignaturesBlock();
   }
@@ -954,20 +1258,41 @@ export function generateMultiSkillReportPdf({
   // 11. SECOND PASS: RUNNING CORPORATE HEADER & FOOTER ON ALL PAGES
   // =========================================================================
   const totalPages = doc.getNumberOfPages();
+  const firstBodyPage = hasCover ? 2 : 1;
+
   for (let p = 1; p <= totalPages; p++) {
     doc.setPage(p);
 
-    // Running Header on subsequent pages (p >= 2)
-    if (p >= 2) {
+    // Skip running header & footer on Cover Page (it has its own custom banner & footer)
+    if (hasCover && p === 1) {
+      continue;
+    }
+
+    // Running Header on subsequent pages (after first report body page)
+    if (p > firstBodyPage) {
       doc.setFillColor(...COLOR_NAVY);
       doc.rect(0, 0, pageWidth, 8.5, 'F');
       doc.setFillColor(...COLOR_GOLD);
       doc.rect(0, 8.5, pageWidth, 0.8, 'F');
 
+      // Mini white badge with official Ajinomoto logo
+      doc.setFillColor(255, 255, 255);
+      doc.roundedRect(marginX, 1.2, 8.5, 6, 0.5, 0.5, 'F');
+      try {
+        doc.addImage(
+          AJINOMOTO_LOGO_BASE64,
+          'PNG',
+          marginX + 0.5,
+          1.5,
+          7.5,
+          5.2
+        );
+      } catch (_) {}
+
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6.5);
+      doc.setFontSize(6.8);
       doc.setTextColor(255, 255, 255);
-      doc.text('PT AJINOMOTO INDONESIA — MOJOKERTO FACTORY | MULTI-SKILL MONITORING SYSTEM', marginX, 5.5);
+      doc.text('PT AJINOMOTO INDONESIA — MOJOKERTO FACTORY | MULTI-SKILL SYSTEM', marginX + 10.5, 5.5);
 
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(6);
@@ -975,7 +1300,7 @@ export function generateMultiSkillReportPdf({
       doc.text(`Dokumen Resmi Evaluasi Karyawan • ${tanggalStr}`, pageWidth - marginX, 5.5, { align: 'right' });
     }
 
-    // Running Footer on all pages
+    // Running Footer on report body pages
     const footerY = pageHeight - 8.5;
     doc.setDrawColor(...COLOR_BORDER);
     doc.setLineWidth(0.2);
@@ -988,8 +1313,10 @@ export function generateMultiSkillReportPdf({
     // Left Footer
     doc.text('Sistem Multi-Skill Monitoring – PT Ajinomoto Indonesia (Mojokerto Factory) • Dokumen Rahasia Perusahaan', marginX, footerY + 1);
 
-    // Right Footer
-    const pageStr = `Halaman ${p} dari ${totalPages}`;
+    // Right Footer with accurate page numbering
+    const displayPageNum = hasCover ? p - 1 : p;
+    const displayTotal = hasCover ? totalPages - 1 : totalPages;
+    const pageStr = `Halaman ${displayPageNum} dari ${displayTotal}`;
     doc.text(pageStr, pageWidth - marginX, footerY + 1, { align: 'right' });
   }
 
